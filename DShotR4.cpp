@@ -12,7 +12,9 @@ DShotR4::dshot_intr0(timer_callback_args_t (*arg))
 void
 DShotR4::dshot_intr(timer_callback_args_t (*arg))
 {
-  if (*cur_duty == stop_count) {
+  intr_count++;
+  running = false;
+  if (enable_dtc || *cur_duty == stop_count) {
     fsp_timer.stop();
     return;
   }
@@ -20,6 +22,7 @@ DShotR4::dshot_intr(timer_callback_args_t (*arg))
  #if 1
   R_GPT4->GTCCR[GTCCR_E] = *cur_duty;
 #else
+  // too slow.
   fsp_timer.set_duty_cycle(*cur_duty, CHANNEL_B);
 #endif
 }
@@ -94,6 +97,65 @@ DShotR4::dshot_gpt_init(void)
 
   dshot_param_init();
   fsp_timer.set_duty_cycle(period_count/2, CHANNEL_A);
+
+  // Get IRQn from current config.
+  for (int i = 0; i < sizeof(R_ICU->IELSR)/sizeof(R_ICU->IELSR[0]); i++) {
+    if (R_ICU->IELSR[i] == BSP_PRV_IELS_ENUM(EVENT_GPT4_COUNTER_OVERFLOW)) {
+      GPT_IRQn = (IRQn)i;
+    }
+  }
+
+  gpt_stop_cmd = 0x1 << channel;
+}
+
+void
+DShotR4::dshot_dtc_init(void)
+{
+  if (!enable_dtc) {
+    Serial.println("DTC Disabled.");
+    return;
+  }
+
+  dtc_info_template[0].transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
+  dtc_info_template[0].transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_INCREMENTED;
+  dtc_info_template[0].transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_END;
+  dtc_info_template[0].transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
+  dtc_info_template[0].transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
+  dtc_info_template[0].transfer_settings_word_b.mode = TRANSFER_MODE_NORMAL;
+  dtc_info_template[0].transfer_settings_word_b.irq = TRANSFER_IRQ_END;
+  // following data will be written back by DTC.
+  dtc_info_template[0].p_src = &(duty_table[1]);
+  dtc_info_template[0].p_dest = (void *)&(R_GPT4->GTCCR[GTCCR_E]);
+  dtc_info_template[0].num_blocks = 0; // unused
+  dtc_info_template[0].length = sizeof(duty_table) / sizeof(duty_table[0]);
+
+  dtc_info_template[1].transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
+  dtc_info_template[1].transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
+  dtc_info_template[1].transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_DISABLED;
+  dtc_info_template[1].transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
+  dtc_info_template[1].transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
+  dtc_info_template[1].transfer_settings_word_b.mode = TRANSFER_MODE_NORMAL;
+  dtc_info_template[1].transfer_settings_word_b.irq = TRANSFER_IRQ_END;
+
+  dtc_info_template[1].p_src = &gpt_stop_cmd;
+  dtc_info_template[1].p_dest = (void *)(&R_GPT4->GTSTP);
+  dtc_info_template[1].num_blocks = 0; // unused.
+  dtc_info_template[1].length = 1;
+
+  assert(GPT_IRQn != FSP_INVALID_VECTOR);
+  dtc_extcfg.activation_source = GPT_IRQn;
+
+  memcpy(dtc_info, dtc_info_template, sizeof(dtc_info));
+  dtc_cfg.p_info = dtc_info;
+  dtc_cfg.p_extend = &dtc_extcfg;
+
+  fsp_err_t err = R_DTC_Open(&dtc_ctrl, &dtc_cfg);
+  assert(FSP_SUCCESS == err);
+
+  err = R_DTC_Enable(&dtc_ctrl);
+  assert(FSP_SUCCESS == err);
+
+  Serial.println("DTC Enabled.");
 }
 
 DShotR4::DShotR4(): intr_count(0), dshot_port(0), fsp_timer()
@@ -107,24 +169,35 @@ DShotR4::~DShotR4()
 }
 
 bool
-DShotR4::init(enum DShotType type)
+DShotR4::init(enum DShotType type, bool dtc_flag)
 {
   dshot_type = type;
+  enable_dtc = dtc_flag;
   dshot_pin_init();
   dshot_gpt_init();
+  dshot_dtc_init();
 }
 
 bool
 DShotR4::start(uint16_t frame)
 {
+  if (running)
+    return false;
+
   dshot_setup_duty_table(frame);
+  Serial.println(intr_count);
 
   if (fsp_timer.is_opened()) {
     fsp_timer.set_duty_cycle(*cur_duty, CHANNEL_B);
     fsp_timer.stop();
     fsp_timer.reset();
+    if (enable_dtc) {
+      memcpy(dtc_info, dtc_info_template, sizeof(dtc_info));   
+      R_DTC_Reconfigure(&dtc_ctrl, dtc_info);
+    }
     fsp_timer.start();
 
+    running = true;
     return true;
   }
 

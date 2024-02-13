@@ -23,24 +23,24 @@ uint16_t dshot_throttle = 0;
 #define DSHOT_TEST
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial.println("AE_HX711 test");
 
   HX711.init(pin_dout, pin_slk);
   HX711.reset();
   HX711.tare();
 
-  DShot.init(DShotR4::DSHOT300);
+  DShot.init(DShotR4::DSHOT600, true);
 }
 
 void
 AE_HX711_Print()
 {
   char S1[80], Stmp[16];
-  double value = HX711.getGram(5);
+  double value = HX711.getGram();
   long snapValue;
 
-  snapValue = HX711.read();
+  snapValue = HX711.acquire();
   dtostrf(value, 5, 3, Stmp);
 
   snprintf(S1, sizeof(S1), "%s [g] (0x%08x)", Stmp, snapValue);
@@ -53,8 +53,9 @@ void loop()
   static unsigned long last_time = 0;
 
   unsigned long time = millis();
+  unsigned long elapsed = time - last_time;
 
-  if (time != last_time) {
+  if (elapsed > 1000) {
 #ifdef DSHOT_TEST
     DShot.send_rawValue(0x0555);
 #else
@@ -70,7 +71,8 @@ void loop()
 
   if (HX711.isDataReady()) 
   {
-    AE_HX711_Print();
+    HX711.acquire();
+//    AE_HX711_Print();
 #ifdef ENABLE_DSHOT
     if (count < 10) {
       dshot_throttle = 0;

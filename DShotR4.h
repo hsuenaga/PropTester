@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <FspTimer.h>
 
+#include "r_dtc.h"
+
 class DShotR4 {
   public:
     enum DShotType {
@@ -55,6 +57,7 @@ class DShotR4 {
       GTCCR_F,
     };
 
+
     const pin_size_t pin_dshot = 0;
     const pin_size_t pin_dshot_ref = 1;
 
@@ -69,6 +72,9 @@ class DShotR4 {
     };
     
     enum DShotType dshot_type = DSHOT150;
+    bool running = false;
+
+    // GPT
     uint32_t period_count;
     uint32_t t1h_count;
     uint32_t t0h_count;
@@ -77,7 +83,18 @@ class DShotR4 {
     uint32_t intr_count_total;
     uint32_t dshot_port;
     FspTimer fsp_timer;
+    IRQn_Type GPT_IRQn = FSP_INVALID_VECTOR;
+    uint32_t gpt_stop_cmd;
 
+    // DTC
+    bool enable_dtc;
+    dtc_instance_ctrl_t dtc_ctrl;
+    dtc_extended_cfg_t dtc_extcfg;
+    transfer_info_t dtc_info_template[2];
+    transfer_info_t dtc_info[2];
+    transfer_cfg_t dtc_cfg;
+
+    // Bit patterns
     uint32_t duty_table[17];
     uint32_t *cur_duty;
 
@@ -86,13 +103,14 @@ class DShotR4 {
     void dshot_param_init(void);
     void dshot_pin_init(void);
     void dshot_gpt_init(void);
+    void dshot_dtc_init(void);
     void dshot_setup_duty_table(uint16_t frame);
 
   public:
     DShotR4();
     ~DShotR4();
 
-    bool init(enum DShotType = DSHOT150);
+    bool init(enum DShotType = DSHOT150, bool enable_dtc = false);
     bool send_rawValue(uint16_t value, bool telemetry = false);
     bool send_throttle(uint16_t throttole, bool telemetry = false);
     bool send_command(enum DShotCommand cmd);
