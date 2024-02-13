@@ -32,13 +32,21 @@
 
 class AE_HX711 {
   private:
+    const static size_t bufferSize = 10;
     pin_size_t pin_data;
     pin_size_t pin_clock;
     float offset;
     bool dataReady;
 
+    long buffer[bufferSize];
+    long *bufferp = buffer;
+    long MaxValue;
+    long minValue;
+
     static void intr();
-    long averaging(char num);
+    void enableIntr();
+    void disableIntr();
+    long averaging();
 
   public:
     AE_HX711();
@@ -46,10 +54,10 @@ class AE_HX711 {
 
     void init(pin_size_t data, pin_size_t clock);
     void reset();
-    long read();
+    long acquire();
     bool isDataReady();
 
     void tare();
-    float getGram(char num);
+    float getGram();
     float getOffset();
 };

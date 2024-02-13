@@ -9,7 +9,7 @@ AE_HX711::AE_HX711()
 
 AE_HX711::~AE_HX711()
 {
-  
+  disableIntr(); 
 }
 
 void AE_HX711::intr()
@@ -17,17 +17,30 @@ void AE_HX711::intr()
   instance->dataReady = true;
 }
 
+void AE_HX711::enableIntr()
+{
+  attachInterrupt(digitalPinToInterrupt(pin_data), intr, FALLING);
+}
+
+void AE_HX711::disableIntr()
+{
+  detachInterrupt(digitalPinToInterrupt(pin_data));
+}
+
 void AE_HX711::init(pin_size_t data, pin_size_t clock)
 {
   dataReady = false;
   pin_data = data;
   pin_clock = clock;
+  memset(buffer, 0, sizeof(buffer));
+  MaxValue = 0x007FFFFF;
+  minValue = ~MaxValue;
 
   pinMode(pin_data, INPUT);
   pinMode(pin_clock, OUTPUT);
 
-  attachInterrupt(digitalPinToInterrupt(pin_data), intr, FALLING);
   instance = this;
+  enableIntr();
 }
 
 void AE_HX711::reset(void)
@@ -38,42 +51,65 @@ void AE_HX711::reset(void)
   delayMicroseconds(100); 
 }
 
-long AE_HX711::read(void)
+long AE_HX711::acquire(void)
 {
   long data=0;
   uint8_t data8;
 
-  detachInterrupt(digitalPinToInterrupt(pin_data));
-  while(digitalRead(pin_data)!=0);
+  if (!dataReady) {
+    return *bufferp;
+  }
 
+  disableIntr();
+  dataReady = false;
+
+  noInterrupts();  
   for (int i = 0; i < 3; i++) {
     data8 = shiftIn(pin_data, pin_clock, MSBFIRST);
     data = data << 8 | data8;
   }
   // CH A: GAIN = 128
   digitalWrite(pin_clock, 1);
-  delayMicroseconds(1);
   digitalWrite(pin_clock, 0);
+  interrupts();
+
+  enableIntr();
 
   if (data & 0x800000) {
     // Sign expantion
     data |= (~0x7fffff);
   }
+  if (++bufferp >= &buffer[bufferSize]) {
+    bufferp = buffer;
+  }
+  *bufferp = data;
 
-  dataReady = false;
-  attachInterrupt(digitalPinToInterrupt(pin_data), intr, FALLING);
-  
   return data; 
 }
 
-long AE_HX711::averaging(char num)
+long AE_HX711::averaging()
 {
   long sum = 0;
-  for (int i = 0; i < num; i++) sum += read();
-  return sum / num;
+  long Max = minValue, min = MaxValue;
+
+
+  for (int i = 0; i < bufferSize; i++) {
+    // assume raw data is 24bit and sum will not be overflowed.
+    long val = buffer[i];
+
+    sum += val;
+    if (val < min) {
+      min = val;
+    }
+    if (val > Max) {
+      Max = val;
+    }
+  }
+  sum -= (min + Max);
+  return sum / (bufferSize - 2);
 }
 
-float AE_HX711::getGram(char num)
+float AE_HX711::getGram()
 {
   #define HX711_R1  20000.0f
   #define HX711_R2  8200.0f
@@ -86,7 +122,7 @@ float AE_HX711::getGram(char num)
   long data;
   float fdata, ndata, rawV, nV, gram;
 
-  data = averaging(num); 
+  data = averaging(); 
   //Serial.println( HX711_AVDD);   
   //Serial.println( HX711_ADC1bit);   
   //Serial.println( HX711_SCALE);   
@@ -117,7 +153,13 @@ float AE_HX711::getGram(char num)
 void
 AE_HX711::tare(void)
 {
-  offset = getGram(30); 
+  int count = 30;
+  for (int i = 0; i < 30; i++) {
+    while (!dataReady)
+      yield();
+    acquire();
+  }
+  offset = getGram(); 
 }
 
 float
