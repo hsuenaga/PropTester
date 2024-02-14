@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <FspTimer.h>
 
+#include "r_gpt.h"
 #include "r_dtc.h"
 
 class DShotR4 {
@@ -11,6 +12,7 @@ class DShotR4 {
       DSHOT150 = 0,
       DSHOT300 = 1,
       DSHOT600 = 2,
+      DSHOT1200 = 3,
       DSHOT_MAX
     };
 
@@ -57,65 +59,66 @@ class DShotR4 {
       GTCCR_F,
     };
 
-
-    const pin_size_t pin_dshot = 0;
-    const pin_size_t pin_dshot_ref = 1;
-
     const struct {
+      float freqHz;
       float bit_duration_us;
       float t1h_us;
       float t0h_us;
     } dshot_timing[DSHOT_MAX] = {
-      {6.67, 5.00, 2.50}, // DSHOT150
-      {3.33, 2.50, 1.25}, // DSHOT300
-      {1.67, 1.25, 0.625}, // DSHOT600
+      {150 * 1000, 6.67, 5.00, 2.50}, // DSHOT150
+      {300 * 1000, 3.33, 2.50, 1.25}, // DSHOT300
+      {600 * 1000, 1.67, 1.25, 0.625}, // DSHOT600
+      {1200 * 1000, 0.83, 0.625, 0.313} // DSHOT1200
     };
-    
     enum DShotType dshot_type = DSHOT150;
-    bool running = false;
-
-    // GPT
     uint32_t period_count;
     uint32_t t1h_count;
     uint32_t t0h_count;
     uint32_t stop_count;
-    uint32_t intr_count;
-    uint32_t intr_count_total;
-    uint32_t dshot_port;
+
+    // Bit patterns
+    uint32_t duty_table[17];
+
+    // GPT
+    bool tx_busy = false;
+    uint32_t tx_success;
+    uint32_t tx_error;
     FspTimer fsp_timer;
+    uint8_t gpt_Channel;
+    TimerPWMChannel_t gpt_pwmChannel;
+    pin_size_t gpt_pwmPin;
     IRQn_Type GPT_IRQn = FSP_INVALID_VECTOR;
     uint32_t gpt_stop_cmd;
 
     // DTC
-    bool enable_dtc;
     dtc_instance_ctrl_t dtc_ctrl;
-    dtc_extended_cfg_t dtc_extcfg;
-    transfer_info_t dtc_info_template[2];
-    transfer_info_t dtc_info[2];
     transfer_cfg_t dtc_cfg;
+    dtc_extended_cfg_t dtc_extcfg;
+    transfer_info_t dtc_info[2];
 
-    // Bit patterns
-    uint32_t duty_table[17];
-    uint32_t *cur_duty;
+    static void dshot_overflow_intr(timer_callback_args_t (*arg));
+    void tx_complete(timer_callback_args_t (*arg));
+    void timing_init(void);
+    void gpt_gtioA_init(gpt_extended_cfg_t (*ext_cfg));
+    void gpt_gtioB_init(gpt_extended_cfg_t (*ext_cfg));
+    void gpt_init();
 
-    static void dshot_intr0(timer_callback_args_t (*arg));
-    void dshot_intr(timer_callback_args_t (*arg));
-    void dshot_param_init(void);
-    void dshot_pin_init(void);
-    void dshot_gpt_init(void);
-    void dshot_dtc_init(void);
-    void dshot_setup_duty_table(uint16_t frame);
+    void dtc_info_init(transfer_info_t (*info));
+    void dtc_info_reset(transfer_info_t (*info));
+    void dtc_init(void);
+
+    void make_duty_counts(uint16_t frame);
+    bool tx_start(uint16_t frame);
 
   public:
     DShotR4();
     ~DShotR4();
 
-    bool init(enum DShotType = DSHOT150, bool enable_dtc = false);
+    bool init(enum DShotType = DSHOT150, uint8_t channel = 4, TimerPWMChannel_t pwmChannel = CHANNEL_B, pin_size_t pwmPin = 0);
     bool send_rawValue(uint16_t value, bool telemetry = false);
     bool send_throttle(uint16_t throttole, bool telemetry = false);
     bool send_command(enum DShotCommand cmd);
-    bool start(uint16_t frame);
-    bool stop(void);
+    bool send_testPattern(void);
 };
 
 #endif /* __DSHOTR4_H__ */

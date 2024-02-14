@@ -24,13 +24,12 @@ uint16_t dshot_throttle = 0;
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("AE_HX711 test");
 
   HX711.init(pin_dout, pin_slk);
   HX711.reset();
   HX711.tare();
 
-  DShot.init(DShotR4::DSHOT600, true);
+  DShot.init(DShotR4::DSHOT300);
 }
 
 void
@@ -57,7 +56,7 @@ void loop()
 
   if (elapsed > 1000) {
 #ifdef DSHOT_TEST
-    DShot.send_rawValue(0x0555);
+    DShot.send_testPattern();
 #else
     if (dshot_throttle != 0) {
       DShot.send_throttle(dshot_throttle);
