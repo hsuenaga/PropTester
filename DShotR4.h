@@ -79,6 +79,8 @@ class DShotR4 {
     uint32_t stop_count;
 
     // Bit patterns
+    bool dshotInvertA = false;
+    bool dshotInvertB = false;
     uint16_t dshotFrame[2];
     uint32_t duty_table[2][17];
 
@@ -117,7 +119,7 @@ class DShotR4 {
     DShotR4();
     ~DShotR4();
 
-    bool init(enum DShotType = DSHOT150, uint8_t channel = 4, bool useChannelA = true, bool useChannelB = true, pin_size_t pwmPinA = 0, pin_size_t pwmPinB = 1);
+    bool init(enum DShotType = DSHOT150, bool biDir = false, uint8_t channel = 4, bool useChannelA = true, bool useChannelB = true, pin_size_t pwmPinA = 0, pin_size_t pwmPinB = 1);
     bool set_rawValue(TimerPWMChannel_t channel, uint16_t value, bool telemetry = false);
     bool set_throttle(TimerPWMChannel_t channel, uint16_t throttole, bool telemetry = false);
     bool set_command(TimerPWMChannel_t channel, enum DShotCommand cmd);

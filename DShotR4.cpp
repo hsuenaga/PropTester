@@ -44,21 +44,39 @@ DShotR4::timing_init(void)
 void
 DShotR4::gpt_gtioA_init(gpt_extended_cfg_t *ext_cfg)
 {
-  ext_cfg->gtior_setting.gtior_b.gtioa = 0x09;
-  ext_cfg->gtior_setting.gtior_b.oadflt = 0;
-  ext_cfg->gtior_setting.gtior_b.oahld = 0;
-  ext_cfg->gtior_setting.gtior_b.oadf = 0;
-  ext_cfg->gtior_setting.gtior_b.oae = 1;
+  if (dshotInvertA) {
+    ext_cfg->gtior_setting.gtior_b.gtioa = 0x16;
+    ext_cfg->gtior_setting.gtior_b.oadflt = 1;
+    ext_cfg->gtior_setting.gtior_b.oahld = 0;
+    ext_cfg->gtior_setting.gtior_b.oadf = 0;
+    ext_cfg->gtior_setting.gtior_b.oae = 1;
+  }
+  else {
+    ext_cfg->gtior_setting.gtior_b.gtioa = 0x09;
+    ext_cfg->gtior_setting.gtior_b.oadflt = 0;
+    ext_cfg->gtior_setting.gtior_b.oahld = 0;
+    ext_cfg->gtior_setting.gtior_b.oadf = 0;
+    ext_cfg->gtior_setting.gtior_b.oae = 1;
+  }
 }
 
 void
 DShotR4::gpt_gtioB_init(gpt_extended_cfg_t *ext_cfg)
 {
-  ext_cfg->gtior_setting.gtior_b.gtiob = 0x09;
-  ext_cfg->gtior_setting.gtior_b.obdflt = 0;
-  ext_cfg->gtior_setting.gtior_b.obhld = 0;
-  ext_cfg->gtior_setting.gtior_b.obdf = 0;
-  ext_cfg->gtior_setting.gtior_b.obe = 1;
+  if (dshotInvertB) {
+    ext_cfg->gtior_setting.gtior_b.gtiob = 0x16;
+    ext_cfg->gtior_setting.gtior_b.obdflt = 1;
+    ext_cfg->gtior_setting.gtior_b.obhld = 0;
+    ext_cfg->gtior_setting.gtior_b.obdf = 0;
+    ext_cfg->gtior_setting.gtior_b.obe = 1;
+  }
+  else {
+    ext_cfg->gtior_setting.gtior_b.gtiob = 0x09;
+    ext_cfg->gtior_setting.gtior_b.obdflt = 0;
+    ext_cfg->gtior_setting.gtior_b.obhld = 0;
+    ext_cfg->gtior_setting.gtior_b.obdf = 0;
+    ext_cfg->gtior_setting.gtior_b.obe = 1;
+  }
 }
 
 void
@@ -231,7 +249,7 @@ DShotR4::~DShotR4()
 }
 
 bool
-DShotR4::init(enum DShotType type, uint8_t channel, bool useChannelA, bool useChannelB, pin_size_t pwmPinA, pin_size_t pwmPinB)
+DShotR4::init(enum DShotType type, bool biDir, uint8_t channel, bool useChannelA, bool useChannelB, pin_size_t pwmPinA, pin_size_t pwmPinB)
 {
   this->dshot_type = type;
   this->gpt_Channel = channel;
@@ -239,6 +257,11 @@ DShotR4::init(enum DShotType type, uint8_t channel, bool useChannelA, bool useCh
   this->gpt_pwmChannelB_enable = useChannelB;
   this->gpt_pwmPinA = pwmPinA;
   this->gpt_pwmPinB = pwmPinB;
+  if (biDir && type != DSHOT150) {
+    this->dshotInvertA = true;
+    this->dshotInvertB = true;
+  }
+
   gpt_init();
   dtc_init();
 }
@@ -279,7 +302,7 @@ bool
 DShotR4::set_testPattern()
 {
   set_rawValue(CHANNEL_A, 0x0AAA, false);
-  set_rawValue(CHANNEL_B, 0x0555, false);
+  set_rawValue(CHANNEL_B, 0x0AAA, false);
   return true;
 }
 
