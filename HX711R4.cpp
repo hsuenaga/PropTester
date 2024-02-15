@@ -1,33 +1,33 @@
-#include "AE_HX711.h"
+#include "HX711R4.h"
 
-static AE_HX711 *instance = nullptr;
+static HX711 *instance = nullptr;
 
-AE_HX711::AE_HX711()
+HX711::HX711()
 {
 
 }
 
-AE_HX711::~AE_HX711()
+HX711::~HX711()
 {
   disableIntr(); 
 }
 
-void AE_HX711::intr()
+void HX711::intr()
 {
   instance->dataReady = true;
 }
 
-void AE_HX711::enableIntr()
+void HX711::enableIntr()
 {
   attachInterrupt(digitalPinToInterrupt(pin_data), intr, FALLING);
 }
 
-void AE_HX711::disableIntr()
+void HX711::disableIntr()
 {
   detachInterrupt(digitalPinToInterrupt(pin_data));
 }
 
-void AE_HX711::init(pin_size_t data, pin_size_t clock)
+void HX711::init(pin_size_t data, pin_size_t clock)
 {
   dataReady = false;
   pin_data = data;
@@ -43,7 +43,7 @@ void AE_HX711::init(pin_size_t data, pin_size_t clock)
   enableIntr();
 }
 
-void AE_HX711::reset(void)
+void HX711::reset(void)
 {
   digitalWrite(pin_clock,1);
   delayMicroseconds(100);
@@ -51,7 +51,7 @@ void AE_HX711::reset(void)
   delayMicroseconds(100); 
 }
 
-long AE_HX711::acquire(void)
+long HX711::acquire(void)
 {
   long data=0;
   uint8_t data8;
@@ -87,7 +87,7 @@ long AE_HX711::acquire(void)
   return data; 
 }
 
-long AE_HX711::averaging()
+long HX711::averaging()
 {
   long sum = 0;
   long Max = minValue, min = MaxValue;
@@ -109,7 +109,7 @@ long AE_HX711::averaging()
   return sum / (bufferSize - 2);
 }
 
-float AE_HX711::getGram()
+float HX711::getGram()
 {
   #define HX711_R1  20000.0f
   #define HX711_R2  8200.0f
@@ -151,7 +151,7 @@ float AE_HX711::getGram()
 }
 
 void
-AE_HX711::tare(void)
+HX711::tare(void)
 {
   int count = 30;
   for (int i = 0; i < 30; i++) {
@@ -163,13 +163,13 @@ AE_HX711::tare(void)
 }
 
 float
-AE_HX711::getOffset(void)
+HX711::getOffset(void)
 {
   return offset;
 }
 
 bool
-AE_HX711::isDataReady(void)
+HX711::isDataReady(void)
 {
   return dataReady;
 }

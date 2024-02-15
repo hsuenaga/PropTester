@@ -30,7 +30,7 @@
 //#define OUT_VOL   0.0007f   //定格出力 [V]
 //#define LOAD      500.0f    //定格容量 [g]
 
-class AE_HX711 {
+class HX711 {
   private:
     const static size_t bufferSize = 10;
     pin_size_t pin_data;
@@ -49,8 +49,8 @@ class AE_HX711 {
     long averaging();
 
   public:
-    AE_HX711();
-    ~AE_HX711();
+    HX711();
+    ~HX711();
 
     void init(pin_size_t data, pin_size_t clock);
     void reset();

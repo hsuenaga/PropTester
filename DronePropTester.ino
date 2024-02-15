@@ -1,6 +1,6 @@
 #include <Arduino.h>
 
-#include "AE_HX711.h"
+#include "HX711R4.h"
 #include "DShotR4.h"
 
 //---------------------------------------------------//
@@ -11,7 +11,7 @@
 #define pin_dshot 0
 #define pin_dshotInv 1
 
-static AE_HX711 HX711;
+static HX711 HX711;
 
 uint32_t gpt_intr_count = 0;
 uint32_t gpt_duty = 0;
