@@ -301,7 +301,7 @@ DShotR4::set_command(TimerPWMChannel_t channel, enum DShotCommand cmd)
 bool
 DShotR4::set_testPattern()
 {
-  set_rawValue(CHANNEL_A, 0x0AAA, false);
+  set_rawValue(CHANNEL_A, 0x0555, false);
   set_rawValue(CHANNEL_B, 0x0AAA, false);
   return true;
 }
