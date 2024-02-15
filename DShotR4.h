@@ -48,6 +48,8 @@ class DShotR4 {
       DSHOT_CMD_SIGNAL_LINE_CONTINUOUS_ERPM_TELEMETRY = 33,
       DSHOT_CMD_MAX = 47,
     };
+    uint32_t tx_success;
+    uint32_t tx_error;
 
   private:
     enum GTCCR_Map {
@@ -70,33 +72,34 @@ class DShotR4 {
       {600 * 1000, 1.67, 1.25, 0.625}, // DSHOT600
       {1200 * 1000, 0.83, 0.625, 0.313} // DSHOT1200
     };
-    enum DShotType dshot_type = DSHOT150;
+    enum DShotType dshot_type;
     uint32_t period_count;
     uint32_t t1h_count;
     uint32_t t0h_count;
     uint32_t stop_count;
 
     // Bit patterns
-    uint32_t duty_table[17];
+    uint16_t dshotFrame[2];
+    uint32_t duty_table[2][17];
 
     // GPT
     bool tx_busy = false;
-    uint32_t tx_success;
-    uint32_t tx_error;
     FspTimer fsp_timer;
     uint8_t gpt_Channel;
-    TimerPWMChannel_t gpt_pwmChannel;
-    pin_size_t gpt_pwmPin;
+    bool gpt_pwmChannelA_enable;
+    bool gpt_pwmChannelB_enable;
+    pin_size_t gpt_pwmPinA;
+    pin_size_t gpt_pwmPinB;
     IRQn_Type GPT_IRQn = FSP_INVALID_VECTOR;
-    uint32_t gpt_stop_cmd;
+    R_GPT0_Type *gpt_reg;
 
     // DTC
     dtc_instance_ctrl_t dtc_ctrl;
     transfer_cfg_t dtc_cfg;
     dtc_extended_cfg_t dtc_extcfg;
-    transfer_info_t dtc_info[2];
+    transfer_info_t dtc_info[3];
 
-    static void dshot_overflow_intr(timer_callback_args_t (*arg));
+    static void gpt_overflow_intr(timer_callback_args_t (*arg));
     void tx_complete(timer_callback_args_t (*arg));
     void timing_init(void);
     void gpt_gtioA_init(gpt_extended_cfg_t (*ext_cfg));
@@ -107,18 +110,19 @@ class DShotR4 {
     void dtc_info_reset(transfer_info_t (*info));
     void dtc_init(void);
 
-    void make_duty_counts(uint16_t frame);
-    bool tx_start(uint16_t frame);
+    void make_duty_counts(uint32_t table[], uint16_t frame);
+    bool tx_start();
 
   public:
     DShotR4();
     ~DShotR4();
 
-    bool init(enum DShotType = DSHOT150, uint8_t channel = 4, TimerPWMChannel_t pwmChannel = CHANNEL_B, pin_size_t pwmPin = 0);
-    bool send_rawValue(uint16_t value, bool telemetry = false);
-    bool send_throttle(uint16_t throttole, bool telemetry = false);
-    bool send_command(enum DShotCommand cmd);
-    bool send_testPattern(void);
+    bool init(enum DShotType = DSHOT150, uint8_t channel = 4, bool useChannelA = true, bool useChannelB = true, pin_size_t pwmPinA = 0, pin_size_t pwmPinB = 1);
+    bool set_rawValue(TimerPWMChannel_t channel, uint16_t value, bool telemetry = false);
+    bool set_throttle(TimerPWMChannel_t channel, uint16_t throttole, bool telemetry = false);
+    bool set_command(TimerPWMChannel_t channel, enum DShotCommand cmd);
+    bool set_testPattern(void);
+    bool transmit(void);
 };
 
 #endif /* __DSHOTR4_H__ */

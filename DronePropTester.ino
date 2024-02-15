@@ -56,16 +56,20 @@ void loop()
 
   if (elapsed > 1000) {
 #ifdef DSHOT_TEST
-    DShot.send_testPattern();
+    DShot.set_testPattern();
 #else
     if (dshot_throttle != 0) {
-      DShot.send_throttle(dshot_throttle);
+      DShot.set_throttle(CHANNEL_A, dshot_throttle);
     }
     else {
-      DShot.send_command(DShotR4::DSHOT_CMD_DISARM);
+      DShot.set_command(CHANNEL_A, DShotR4::DSHOT_CMD_DISARM);
     }
 #endif
+    DShot.transmit();
     last_time = time;
+    Serial.println("-----");
+    Serial.println(DShot.tx_success);
+    Serial.println(DShot.tx_error);
   }
 
   if (HX711.isDataReady()) 
