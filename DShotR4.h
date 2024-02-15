@@ -81,8 +81,8 @@ class DShotR4 {
     // Bit patterns
     bool dshotInvertA = false;
     bool dshotInvertB = false;
-    uint16_t dshotFrame[2];
-    uint32_t duty_table[2][17];
+    uint16_t nextFrame[2];
+    uint32_t waveform[2][17];
 
     // GPT
     bool tx_busy = false;
@@ -112,7 +112,7 @@ class DShotR4 {
     void dtc_info_reset(transfer_info_t (*info));
     void dtc_init(void);
 
-    void make_duty_counts(uint32_t table[], uint16_t frame);
+    void load_frame(uint32_t table[], uint16_t frame);
     bool tx_start();
 
   public:
