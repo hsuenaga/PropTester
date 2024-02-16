@@ -11,6 +11,8 @@ DShotR4::gpt_overflow_intr(timer_callback_args_t (*arg))
 void
 DShotR4::tx_complete(timer_callback_args_t (*arg))
 {
+
+//  gpt_reg->GTSTP = gpt_stop_cmd;
   tx_success++;
   tx_busy = false;
 
@@ -24,7 +26,7 @@ DShotR4::load_frame(uint32_t table[], uint16_t frame)
     bool bit = ((frame << i) & 0x8000) != 0;
     table[i] = bit ? t1h_count : t0h_count;
   }
-  table[16] = stop_count;
+  table[waveformBits - 1] = stop_count;
 }
 
 void
@@ -32,81 +34,105 @@ DShotR4::timing_init(void)
 {
   assert(fsp_timer.is_opened() == true);
 
+  const struct dshot_params_t *param = &dshot_timing[dshot_type];
+
   period_count = fsp_timer.get_cfg()->period_counts;
 
-  float dshot_T1H_Duty = (dshot_timing[dshot_type].t1h_us / dshot_timing[dshot_type].bit_duration_us);
-  float dshot_T0H_Duty = (dshot_timing[dshot_type].t0h_us / dshot_timing[dshot_type].bit_duration_us);
-  t1h_count = (uint32_t)ceil((float)period_count * dshot_T1H_Duty);
-  t0h_count = (uint32_t)ceil((float)period_count * dshot_T0H_Duty);
+  float t1h_ratio = param->t1h_us / param->bit_duration_us;
+  float t0h_ratio = param->t0h_us / param->bit_duration_us;
+
+  t1h_count = (uint32_t)ceil((float)period_count * t1h_ratio);
+  t0h_count = (uint32_t)ceil((float)period_count * t0h_ratio);
   stop_count = 0;
 }
 
 void
-DShotR4::gpt_gtioA_init(gpt_extended_cfg_t *ext_cfg)
+DShotR4::gpt_gtioReg_init()
 {
-  if (dshotInvertA) {
-    ext_cfg->gtior_setting.gtior_b.gtioa = 0x16;
-    ext_cfg->gtior_setting.gtior_b.oadflt = 1;
-    ext_cfg->gtior_setting.gtior_b.oahld = 0;
-    ext_cfg->gtior_setting.gtior_b.oadf = 0;
-    ext_cfg->gtior_setting.gtior_b.oae = 1;
-  }
-  else {
-    ext_cfg->gtior_setting.gtior_b.gtioa = 0x09;
-    ext_cfg->gtior_setting.gtior_b.oadflt = 0;
-    ext_cfg->gtior_setting.gtior_b.oahld = 0;
-    ext_cfg->gtior_setting.gtior_b.oadf = 0;
-    ext_cfg->gtior_setting.gtior_b.oae = 1;
-  }
-}
+  gtioRunning = 0;
 
-void
-DShotR4::gpt_gtioB_init(gpt_extended_cfg_t *ext_cfg)
-{
-  if (dshotInvertB) {
-    ext_cfg->gtior_setting.gtior_b.gtiob = 0x16;
-    ext_cfg->gtior_setting.gtior_b.obdflt = 1;
-    ext_cfg->gtior_setting.gtior_b.obhld = 0;
-    ext_cfg->gtior_setting.gtior_b.obdf = 0;
-    ext_cfg->gtior_setting.gtior_b.obe = 1;
+  if (gpt_pwmChannelA_enable) {
+    if (dshotInvertA) {
+      gtioRunning |= 0x01 << 6; // OADFLT = 1
+      gtioRunning |= 0x01 << 8; // OAE = 1
+      gtioRunning |= 0x16; // GTIOA = 0x16(High, Low, High)
+    }
+    else {
+      gtioRunning |= 0x01 << 8; // OAE = 1
+      gtioRunning |= 0x09; // GTIOA = 0x09(Low, High, Low)
+    }
   }
-  else {
-    ext_cfg->gtior_setting.gtior_b.gtiob = 0x09;
-    ext_cfg->gtior_setting.gtior_b.obdflt = 0;
-    ext_cfg->gtior_setting.gtior_b.obhld = 0;
-    ext_cfg->gtior_setting.gtior_b.obdf = 0;
-    ext_cfg->gtior_setting.gtior_b.obe = 1;
+
+  if (gpt_pwmChannelB_enable) {
+    if (dshotInvertB) {
+      gtioRunning |= 0x01 << 22; // OBDFLT = 1
+      gtioRunning |= 0x01 << 24; // OBE = 1
+      gtioRunning |= 0x16 << 16; // GTIOB = 0x16(High, Low, High)
+    }
+    else {
+      gtioRunning |= 0x01 << 24; // OBE = 1
+      gtioRunning |= 0x09 << 16; // GTIOB = 0x09(Low, High, Low)
+    }
   }
+
+  gtioStop = 0;
+  if (gpt_pwmChannelA_enable) {
+    if (dshotInvertA) {
+      gtioStop |= 0x01 << 6; // OADFLT = 1
+      gtioStop |= 0x01 << 8; // OAE = 1
+      gtioStop |= 0x1A; // GTIOA = 0x1A(High, High, High)
+    }
+    else {
+      gtioStop |= 0x01 << 8; // OAE = 1
+      gtioStop |= 0x05; // GTIOA = 0x05(Low, Low, Low)
+    }
+  }
+
+  if (gpt_pwmChannelB_enable) {
+    if (dshotInvertB) {
+      gtioStop |= 0x01 << 22; // OBDFLT = 1
+      gtioStop |= 0x01 << 24; // OBE = 1
+      gtioStop |= 0x1A << 16; // GTIOB = 0x1A(High, High, High)
+    }
+    else {
+      gtioStop |= 0x01 << 24; // OBE = 1
+      gtioStop |= 0x05 << 16; // GTIOB = 0x05(Low, Low, Low)
+    }
+  }
+
+  for (int i = 0; i < waveformBits; i++) {
+    gtioState[i] = gtioRunning;
+  }
+  gtioState[waveformBits - 1] = gtioStop;
+
+  gpt_stop_cmd = 0x1 << gpt_Channel;
 }
 
 void
 DShotR4::gpt_init(void)
 {
   // see variants/MINIMA/includes/ra/fsp/inc/api/r_ioport_api.h
-  const static uint32_t pin_cfg = IOPORT_CFG_PORT_DIRECTION_OUTPUT | IOPORT_CFG_PERIPHERAL_PIN | IOPORT_PERIPHERAL_GPT1;
+  const static uint32_t pin_cfg = IOPORT_CFG_PORT_DIRECTION_OUTPUT |
+                                  IOPORT_CFG_PERIPHERAL_PIN |
+                                  IOPORT_PERIPHERAL_GPT1;
   float default_duty = 0.0;
-  float dshot_FreqHz = (float)dshot_timing[dshot_type].freqHz;
+  float freqHz = (float)(1.0 / dshot_timing[dshot_type].bit_duration_us * 1000.0 * 1000.0);
 
-  // see cores/arduino/pinDefinitions.cpp
-  if (gpt_pwmChannelA_enable) {
-    pinPeripheral(gpt_pwmPinA, pin_cfg);
-  }
-  if (gpt_pwmChannelB_enable) {
-    pinPeripheral(gpt_pwmPinB, pin_cfg);
-  }
+  gpt_reg = (R_GPT0_Type *)((unsigned long)R_GPT0_BASE + (unsigned long)(0x0100 * gpt_Channel));
+  gpt_gtioReg_init();
 
-  fsp_timer.begin(TIMER_MODE_PWM, GPT_TIMER, gpt_Channel, dshot_FreqHz, default_duty, gpt_overflow_intr, this);
+  fsp_timer.begin(TIMER_MODE_PWM, GPT_TIMER, gpt_Channel, freqHz, default_duty, gpt_overflow_intr, this);
   fsp_timer.setup_overflow_irq();
   fsp_timer.add_pwm_extended_cfg();
   gpt_extended_cfg_t *ext_cfg = (gpt_extended_cfg_t *)fsp_timer.get_cfg()->p_extend;
+  ext_cfg->gtior_setting.gtior = gtioStop;
 
   if (gpt_pwmChannelA_enable) {
-      gpt_gtioA_init(ext_cfg);
+      pinPeripheral(gpt_pwmPinA, pin_cfg);
   }
   if (gpt_pwmChannelB_enable) {
-      gpt_gtioB_init(ext_cfg);
+      pinPeripheral(gpt_pwmPinB, pin_cfg);
   }
-
   fsp_timer.open();
 
   // Get period count from current config.
@@ -118,8 +144,6 @@ DShotR4::gpt_init(void)
       GPT_IRQn = (IRQn)i;
     }
   }
-
-  gpt_reg = (R_GPT0_Type *)((unsigned long)R_GPT0_BASE + (unsigned long)(0x0100 * gpt_Channel));
 }
 
 void
@@ -141,16 +165,16 @@ DShotR4::dtc_info_init(transfer_info_t *info)
   infop++;
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_INCREMENTED;
-  infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_END;
+  infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_EACH;
   infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
   infop->transfer_settings_word_b.mode = TRANSFER_MODE_NORMAL;
   infop->transfer_settings_word_b.irq = TRANSFER_IRQ_END;
 
-  // stop GTP
+  // GTIO pins
   infop++;
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
+  infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_INCREMENTED;
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_DISABLED;
   infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
@@ -164,30 +188,28 @@ void
 DShotR4::dtc_info_reset(transfer_info_t *info)
 {
   transfer_info_t *infop = info;
-  static uint32_t gpt_stop_cmd;
-
-  gpt_stop_cmd = 0x1 << gpt_Channel;
+  uint16_t bits = waveformBits -1;
 
   // transfer waveform A
   infop = info;
   infop->p_src = &(waveform[CHANNEL_A][1]);
   infop->p_dest = (void *)&(gpt_reg->GTCCR[GTCCR_C]);
   infop->num_blocks = 0; // unused
-  infop->length = sizeof(waveform[0]) / sizeof(waveform[0][0]);
+  infop->length = bits;
 
   // transfer waveform B
   infop++;
   infop->p_src = &(waveform[CHANNEL_B][1]);
   infop->p_dest = (void *)&(gpt_reg->GTCCR[GTCCR_E]);
   infop->num_blocks = 0; // unused
-  infop->length = sizeof(waveform[0]) / sizeof(waveform[0][0]);
+  infop->length = bits;
 
-  // stop GTP
+  // disable GTIO pins.
   infop++;
-  infop->p_src = &gpt_stop_cmd;
-  infop->p_dest = (void *)&(gpt_reg->GTSTP);
+  infop->p_src = &(gtioState[1]);
+  infop->p_dest = (void *)&(gpt_reg->GTIOR);
   infop->num_blocks = 0; // unused.
-  infop->length = 1;
+  infop->length = bits;
 }
 
 void
@@ -221,14 +243,18 @@ DShotR4::tx_start()
 
   fsp_timer.stop();
   fsp_timer.reset();
+
   for (int i = CHANNEL_A; i <= CHANNEL_B; i++) {
     load_frame(waveform[i], nextFrame[i]);
     fsp_timer.set_duty_cycle(waveform[i][0], (TimerPWMChannel_t)i);
   }
+
   dtc_info_reset(dtc_info);
   R_DTC_Disable(&dtc_ctrl);
   R_DTC_Reconfigure(&dtc_ctrl, dtc_info);
   R_DTC_Enable(&dtc_ctrl);
+
+  gpt_reg->GTIOR = gtioRunning;
 
   fsp_timer.start();
 
@@ -271,14 +297,19 @@ DShotR4::init(enum DShotType type, bool biDir, uint8_t channel, bool useChannelA
 bool
 DShotR4::set_rawValue(TimerPWMChannel_t channel, uint16_t value, bool telemetry)
 {
-  uint16_t data, crc, frame;
+  uint16_t data, cksum, frame;
 
   if (channel > CHANNEL_B) {
     return false;
   }
   data = (value << 1) | (telemetry ? 0x0001 : 0x0000);
-  crc = (data ^ (data >> 4) ^ (data >> 8)) &0x000f;
-  frame = (data << 4) | crc;
+  cksum = (data ^ (data >> 4) ^ (data >> 8)) &0x000f;
+  if ((channel == CHANNEL_A && dshotInvertA) || (channel == CHANNEL_B && dshotInvertB)) {
+    frame = (data << 4) | ~cksum;
+  }
+  else {
+    frame = (data << 4) | cksum;
+  }
 
   nextFrame[channel] = frame;
   return true;;
@@ -304,7 +335,7 @@ DShotR4::set_command(TimerPWMChannel_t channel, enum DShotCommand cmd)
 bool
 DShotR4::set_testPattern()
 {
-  set_rawValue(CHANNEL_A, 0x0555, false);
+  set_rawValue(CHANNEL_A, 0x0555, true);
   set_rawValue(CHANNEL_B, 0x0AAA, false);
   return true;
 }

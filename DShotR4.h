@@ -61,16 +61,15 @@ class DShotR4 {
       GTCCR_F,
     };
 
-    const struct {
-      float freqHz;
+    const struct dshot_params_t {
       float bit_duration_us;
       float t1h_us;
       float t0h_us;
     } dshot_timing[DSHOT_MAX] = {
-      {150 * 1000, 6.67, 5.00, 2.50}, // DSHOT150
-      {300 * 1000, 3.33, 2.50, 1.25}, // DSHOT300
-      {600 * 1000, 1.67, 1.25, 0.625}, // DSHOT600
-      {1200 * 1000, 0.83, 0.625, 0.313} // DSHOT1200
+      {6.67, 5.00, 2.50}, // DSHOT150
+      {3.33, 2.50, 1.25}, // DSHOT300
+      {1.67, 1.25, 0.625}, // DSHOT600
+      {0.83, 0.625, 0.313} // DSHOT1200
     };
     enum DShotType dshot_type;
     uint32_t period_count;
@@ -82,7 +81,9 @@ class DShotR4 {
     bool dshotInvertA = false;
     bool dshotInvertB = false;
     uint16_t nextFrame[2];
-    uint32_t waveform[2][17];
+    const static int waveformBits = 17;
+    uint32_t waveform[2][waveformBits];
+    uint32_t gtioState[waveformBits];
 
     // GPT
     bool tx_busy = false;
@@ -94,6 +95,10 @@ class DShotR4 {
     pin_size_t gpt_pwmPinB;
     IRQn_Type GPT_IRQn = FSP_INVALID_VECTOR;
     R_GPT0_Type *gpt_reg;
+    uint32_t gtioRunning;
+    uint32_t gtioStop;
+    uint32_t gpt_stop_cmd;
+
 
     // DTC
     dtc_instance_ctrl_t dtc_ctrl;
@@ -104,8 +109,7 @@ class DShotR4 {
     static void gpt_overflow_intr(timer_callback_args_t (*arg));
     void tx_complete(timer_callback_args_t (*arg));
     void timing_init(void);
-    void gpt_gtioA_init(gpt_extended_cfg_t (*ext_cfg));
-    void gpt_gtioB_init(gpt_extended_cfg_t (*ext_cfg));
+    void gpt_gtioReg_init(void);
     void gpt_init();
 
     void dtc_info_init(transfer_info_t (*info));
