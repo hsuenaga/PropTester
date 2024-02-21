@@ -61,6 +61,36 @@ class DShotR4 {
       GTCCR_F,
     };
 
+    struct GTIO_PIN_MAP {
+      int channel;
+      pin_size_t gtio_A;
+      pin_size_t gtio_B;
+    };
+#if defined(ARDUINO_MINIMA)
+    struct GTIO_PIN_MAP pinMap[8] = {
+      {0, 7, 6},    // P107, P106
+      {1, 2, 3},    // P105, P104
+      {1, 11, 12},  // P109, P110
+      {2, 4, 5},    // P103, P102
+      {3, 13, 10},  // P111, P112
+      {4, 1, 0},    // P302, P301
+      {5, A4, A5},  // P101, P100
+      {7, 8, 9},    // P304, P303
+    };
+#elif defined(ARDUINO_UNOWIFIR4)
+    struct GTIO_PIN_MAP pinMap[8] = {
+      {0, 5, 4},    // P107, P106
+      {1, 3, 2},    // P105, P104
+      {2, 10, ~0},    // P103, P102(J3.pin3)
+      {3, 6, 7},  // P111, P112
+      {4, 1, 0},    // P302, P301
+      {5, A4, A5},  // P101, P100
+      {7, 8, 9},    // P304, P303
+    };
+#else
+#error "Board is not supported."
+#endif
+
     const struct dshot_params_t {
       float bit_duration_us;
       float t1h_us;
@@ -76,14 +106,19 @@ class DShotR4 {
     uint32_t t1h_count;
     uint32_t t0h_count;
     uint32_t stop_count;
+    uint32_t dshot_ifg_us;
+    bool auto_restart;
 
     // Bit patterns
     bool dshotInvertA = false;
     bool dshotInvertB = false;
     uint16_t nextFrame[2];
+    bool nextFrameUpdate = false;
+    bool armed = false;
     const static int waveformBits = 17;
-    uint32_t waveform[2][waveformBits];
-    uint32_t gtioState[waveformBits];
+    const static int ifgBits = waveformBits * 2; // XXX: what is reasonable value???
+    uint32_t waveform[2][waveformBits + ifgBits];
+    uint32_t gtioState[waveformBits + ifgBits];
 
     // GPT
     bool tx_busy = false;
@@ -95,10 +130,9 @@ class DShotR4 {
     pin_size_t gpt_pwmPinB;
     IRQn_Type GPT_IRQn = FSP_INVALID_VECTOR;
     R_GPT0_Type *gpt_reg;
-    uint32_t gtioRunning;
-    uint32_t gtioStop;
-    uint32_t gpt_stop_cmd;
-
+    gpt_gtior_setting_t gtioRunning;
+    gpt_gtior_setting_t gtioStop;
+    gpt_gtior_setting_t gtioReset;
 
     // DTC
     dtc_instance_ctrl_t dtc_ctrl;
@@ -109,26 +143,35 @@ class DShotR4 {
     static void gpt_overflow_intr(timer_callback_args_t (*arg));
     void tx_complete(timer_callback_args_t (*arg));
     void timing_init(void);
-    void gpt_gtioReg_init(void);
+    void gpt_gtioState_init(void);
     void gpt_init();
 
     void dtc_info_init(transfer_info_t (*info));
     void dtc_info_reset(transfer_info_t (*info));
     void dtc_init(void);
 
-    void load_frame(uint32_t table[], uint16_t frame);
-    bool tx_start();
+    void load_frame(void);
+    bool tx_restart(void);
+    bool tx_start(void);
 
   public:
     DShotR4();
     ~DShotR4();
 
     bool init(enum DShotType = DSHOT150, bool biDir = false, uint8_t channel = 4, bool useChannelA = true, bool useChannelB = true, pin_size_t pwmPinA = 0, pin_size_t pwmPinB = 1);
+    bool deinit();
+
     bool set_rawValue(TimerPWMChannel_t channel, uint16_t value, bool telemetry = false);
     bool set_throttle(TimerPWMChannel_t channel, uint16_t throttole, bool telemetry = false);
     bool set_command(TimerPWMChannel_t channel, enum DShotCommand cmd);
     bool set_testPattern(void);
-    bool transmit(void);
+
+    bool transmit(bool oneShot = false);
+    bool suspend(void);
+    bool arm(void);
+    bool reset(void);
+
+    uint32_t get_ifg_us(void);
 };
 
 #endif /* __DSHOTR4_H__ */
