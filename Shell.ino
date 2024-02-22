@@ -16,7 +16,10 @@ struct shell_command_table {
 bool
 exec_stat(char *arg)
 {
+  message("--DShot status--\n");
   message("tx_success: %d, tx_error: %d\n", DShot.tx_success, DShot.tx_error);
+  message("--MSP status--\n");
+  message("received: %d, error: %d\n", Msp.received, Msp.error);
   return true;
 }
 

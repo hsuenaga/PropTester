@@ -3,6 +3,10 @@ char *consoleBufferp = consoleBuffer;
 const char *consoleEndp = consoleBufferp + sizeof(consoleBuffer) - 1;
 bool lineCompleted = false;
 bool consoleEcho = true;
+enum consoleState_t {
+  DEFAULT,
+  MSP
+} consoleState = DEFAULT;
 
 int
 message(const char *fmt, ...)
@@ -27,6 +31,18 @@ consoleReceive(void)
     return false;
   }
   int byte = Serial.read();
+
+  // Intercept MSP/BLIHELI frame.
+  if (consoleBufferp == consoleBuffer && consoleState != MSP && byte == '$') {
+    consoleState = MSP;
+  }
+  if (consoleState == MSP) {
+    if (Msp.receive(byte)) {
+      return true;
+    }
+    consoleState = DEFAULT;    
+  }
+
   switch (byte) {
     case 0x0d:
       // ignore 0x0d
