@@ -399,7 +399,7 @@ DShotR4::set_throttle(TimerPWMChannel_t channel, uint16_t throttle, bool telemet
 bool
 DShotR4::set_command(TimerPWMChannel_t channel, enum DShotCommand cmd)
 {
-  return set_rawValue(channel, (uint16_t)cmd, true);
+  return set_rawValue(channel, (uint16_t)cmd, (cmd != DSHOT_CMD_DISARM) ? true : false);
 }
 
 bool
@@ -485,6 +485,8 @@ DShotR4::arm()
 bool
 DShotR4::reset()
 {
+  suspend();
+  delay(1000);
   gpt_reg->GTIOR = gtioReset.gtior;
   delay(1000);
   gpt_reg->GTIOR = gtioStop.gtior;
