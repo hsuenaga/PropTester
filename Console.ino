@@ -1,8 +1,24 @@
 char consoleBuffer[256];
 char *consoleBufferp = consoleBuffer;
-const char *consoleEndp = consoleBufferp + sizeof(consoleBuffer);
+const char *consoleEndp = consoleBufferp + sizeof(consoleBuffer) - 1;
 bool lineCompleted = false;
 bool consoleEcho = true;
+
+int
+message(const char *fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  char strbuf[256];
+  int ret;
+
+  strbuf[0] = '\0';
+  ret = vsnprintf(strbuf, sizeof(strbuf), fmt, ap);
+  va_end(ap);
+
+  Serial.write(strbuf);
+  return ret;
+}
 
 bool
 consoleReceive(void)
@@ -31,32 +47,14 @@ consoleReceive(void)
       }
       break;
   }
-  if (lineCompleted) {
-    return true;
-  }
-  return false;
-}
-
-bool
-consoleRead(char *dst, size_t dstlen)
-{
-  size_t srclen = consoleBufferp - consoleBuffer;
-
   if (!lineCompleted) {
     return false;
   }
 
-  if (srclen > (dstlen - 1)) {
-    memcpy(dst, consoleBuffer, (dstlen - 1));
-    dst[dstlen - 1] = '\0';
-  }
-  else {
-    memcpy(dst, consoleBuffer, srclen);
-    dst[srclen] = '\0';
-  }
+  *consoleBufferp = '\0';
   consoleBufferp = consoleBuffer;
   lineCompleted = false;
-  return true;
+  return consoleParse(consoleBuffer);
 }
 
 bool
@@ -79,9 +77,9 @@ consoleParse(char *rcvbuf)
     }
   }
 
-  if (*command != '\0') {
-    shell(command, arg);
+  if (*command == '\0') {
+    return false;
   }
 
-  return true;
+  return shell(command, arg);
 }
