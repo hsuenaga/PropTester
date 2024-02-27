@@ -1,7 +1,4 @@
-#include <Arduino.h>
-
 #include "MSP.h"
-#include "DShotR4.h"
 
 #define U16(x) ((x) & 0xff), (((x) >> 8) & 0xff)
 #define U32(x) ((x) & 0xff), (((x) >> 8) & 0xff), (((x) >> 16) & 0xff), (((x) >> 24) & 0xff)
@@ -29,7 +26,7 @@ MSP::reply(const uint8_t *payload, uint8_t len)
   }
   *p = checksum;
 
-  Serial.write(buf, len); // XXX: support other streams.
+  MspPort.write(buf, len);
 }
 
 void
@@ -230,6 +227,14 @@ MSP::process()
 
   // silent discard.
   return;
+}
+
+MSP::MSP(Stream &Port, DShotR4 &DShotInstance) : MspPort(Port), DShot(DShotInstance)
+{
+}
+
+MSP::~MSP()
+{
 }
 
 bool

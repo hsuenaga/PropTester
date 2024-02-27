@@ -1,5 +1,7 @@
 #include <Arduino.h>
 
+#include "DShotR4.h"
+
 class MSP {
   private:
     // $M<SC... or $M>SC...
@@ -52,6 +54,9 @@ class MSP {
     uint8_t dataChecksum;
     uint8_t command;
 
+    Stream &MspPort;
+    DShotR4 &DShot;
+
     void proc_api_version(void);
     void proc_fc_variant(void);
     void proc_fc_version(void);
@@ -75,6 +80,9 @@ class MSP {
   public:
     int received = 0;
     int error = 0;
+
+    MSP(Stream &Port, DShotR4 &DShotInstance);
+    ~MSP(void);
 
     bool receive(int byte);
 };

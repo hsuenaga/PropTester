@@ -5,6 +5,8 @@
 #error "Board not supported."
 #endif
 
+#undef DEBUG_CHANNEL_A
+
 void
 DShotR4::gpt_overflow_intr(timer_callback_args_t (*arg))
 {
@@ -16,18 +18,35 @@ DShotR4::gpt_overflow_intr(timer_callback_args_t (*arg))
 void
 DShotR4::tx_complete(timer_callback_args_t (*arg))
 {
+  if (tx_serial) {
+    return tx_serial_complete(arg);
+  }
   tx_success++;
   tx_busy = false;
-  fsp_timer.stop();
+
   if (auto_restart) {
-    tx_restart();
+    if (auto_restart_count < 0) {
+      // always restart
+      tx_restart();
+      return;
+    }
+    else if (auto_restart_count == 0) {
+      // nothing to do.
+      return;
+    }
+    else {
+      // restart specified times.
+      auto_restart_count--;
+      tx_restart();
+      return;
+    }
   }
 
   return;
 }
 
 void
-DShotR4::load_frame()
+DShotR4::load_dshot_frame()
 {
   // NEVER call while DTC is running.
   assert(tx_busy == false);
@@ -38,6 +57,9 @@ DShotR4::load_frame()
     if (gpt_pwmChannelA_enable) {
       bit = ((nextFrame[0] << i) & 0x8000) != 0;
       waveform[0][i] = bit ? t1h_count : t0h_count;
+#ifdef DEBUG_CHANNEL_A
+      waveform[0][i] = period_count / 2;
+#endif
     }
     if (gpt_pwmChannelB_enable) {
       bit = ((nextFrame[1] << i) & 0x8000) != 0;
@@ -49,7 +71,7 @@ DShotR4::load_frame()
 }
 
 void
-DShotR4::timing_init(void)
+DShotR4::update_timer_counts(void)
 {
   assert(fsp_timer.is_opened() == true);
 
@@ -60,8 +82,8 @@ DShotR4::timing_init(void)
   float t1h_ratio = param->t1h_us / param->bit_duration_us;
   float t0h_ratio = param->t0h_us / param->bit_duration_us;
 
-  t1h_count = (uint32_t)ceil((float)period_count * t1h_ratio);
-  t0h_count = (uint32_t)ceil((float)period_count * t0h_ratio);
+  t1h_count = (uint32_t)ceil((float)period_count * t1h_ratio * tolerance_t1h);
+  t0h_count = (uint32_t)floor((float)period_count * t0h_ratio * tolerance_t0h);
   stop_count = 0;
   dshot_ifg_us = (uint32_t)ceil(param->bit_duration_us * ifgBits);
 }
@@ -69,58 +91,61 @@ DShotR4::timing_init(void)
 void
 DShotR4::gpt_gtioState_init()
 {
+  uint32_t oae = gpt_pwmChannelA_enable ? 1 : 0;
+  uint32_t obe = gpt_pwmChannelB_enable ? 1 : 0;
+
+  // Fixed level
+  gtioHigh.gtior = 0;
+  gtioLow.gtior = 0;
+  gtioHigh.gtior_b.oae = gtioLow.gtior_b.oae = oae;
+  gtioHigh.gtior_b.obe = gtioLow.gtior_b.obe = obe;
+  gtioHigh.gtior_b.gtioa = gtioHigh.gtior_b.gtiob = 0x1A; // High, High, High
+  gtioHigh.gtior_b.oadflt = gtioHigh.gtior_b.obdflt = 1; // High
+  gtioLow.gtior_b.gtioa = gtioLow.gtior_b.gtiob = 0x05; // Low, Low, Low
+  gtioLow.gtior_b.oadflt = gtioLow.gtior_b.obdflt = 0; // Low
+
+  // DShot wave forms  
   gtioRunning.gtior = 0;
   gtioStop.gtior = 0;
-  gtioReset.gtior = 0;
 
-  if (gpt_pwmChannelA_enable) {
-    if (dshotInvertA) {
-      gtioRunning.gtior_b.gtioa = 0x16; // High, Low, High
-      gtioRunning.gtior_b.oadflt = 1; // High
-      gtioStop.gtior_b.gtioa = 0x1A; // High, High, High
-      gtioStop.gtior_b.oadflt = 1; // High
-      gtioReset.gtior_b.gtioa = 0x05; // Low, Low, Low
-      gtioReset.gtior_b.oadflt = 0; // Low
-    }
-    else {
-      gtioRunning.gtior_b.gtioa = 0x09; // Low, High, Low
-      gtioRunning.gtior_b.oadflt = 0; // Low
-      gtioStop.gtior_b.gtioa = 0x05; // Low, Low, Low
-      gtioStop.gtior_b.oadflt = 0; // Low
-      gtioReset.gtior_b.gtioa = 0x1A; // High, High, High
-      gtioReset.gtior_b.oadflt = 1; // High
-    }
-    gtioRunning.gtior_b.oae = 1;
-    gtioStop.gtior_b.oae = 1;
-    gtioReset.gtior_b.oae = 1;
+  gtioRunning.gtior_b.oae = oae;
+  gtioStop.gtior_b.oae = oae;
+  if (dshotInvertA) {
+    gtioRunning.gtior_b.gtioa = 0x16; // High, Low, High
+    gtioRunning.gtior_b.oadflt = 1; // High
+    gtioStop.gtior_b.gtioa = gtioHigh.gtior_b.gtioa;
+    gtioStop.gtior_b.oadflt = gtioHigh.gtior_b.oadflt;
   }
-
-  if (gpt_pwmChannelB_enable) {
-    if (dshotInvertB) {
-      gtioRunning.gtior_b.gtiob = 0x16; // High, Low, High
-      gtioRunning.gtior_b.obdflt = 1; // High
-      gtioStop.gtior_b.gtiob = 0x1A; // High, High, High
-      gtioStop.gtior_b.obdflt = 1; // High
-      gtioReset.gtior_b.gtiob = 0x05; // Low, Low, Low
-      gtioReset.gtior_b.obdflt = 0; // Low
-    }
-    else {
-      gtioRunning.gtior_b.gtiob = 0x09; // Low, High, Low
-      gtioRunning.gtior_b.obdflt = 0; // Low
-      gtioStop.gtior_b.gtiob = 0x05; // Low, Low, Low
-      gtioStop.gtior_b.obdflt = 0; // Low
-      gtioReset.gtior_b.gtiob = 0x1A; // High, High, High
-      gtioReset.gtior_b.obdflt = 1; // High
-    }
-    gtioRunning.gtior_b.obe = 1;
-    gtioStop.gtior_b.obe = 1;
-    gtioReset.gtior_b.obe = 1;
+  else {
+    gtioRunning.gtior_b.gtioa = 0x09; // Low, High, Low
+    gtioRunning.gtior_b.oadflt = 0; // Low
+    gtioStop.gtior_b.gtioa = gtioLow.gtior_b.gtioa;
+    gtioStop.gtior_b.oadflt = gtioLow.gtior_b.oadflt;
   }
+  
+  gtioRunning.gtior_b.obe = obe;
+  gtioStop.gtior_b.obe = obe;
+  if (dshotInvertB) {
+    gtioRunning.gtior_b.gtiob = 0x16; // High, Low, High
+    gtioRunning.gtior_b.obdflt = 1; // High
+    gtioStop.gtior_b.gtiob = gtioHigh.gtior_b.gtiob;
+    gtioStop.gtior_b.obdflt = gtioHigh.gtior_b.obdflt;
+  }
+  else {
+    gtioRunning.gtior_b.gtiob = 0x09; // Low, High, Low
+    gtioRunning.gtior_b.obdflt = 0; // Low
+    gtioStop.gtior_b.gtiob = gtioLow.gtior_b.gtiob;
+    gtioStop.gtior_b.obdflt = gtioLow.gtior_b.obdflt;
+  }
+#ifdef DEBUG_CHANNEL_A
+  gtioStop.gtior_b.gtioa = gtioRunning.gtior_b.gtioa;
+  gtioStop.gtior_b.oadflt = gtioRunning.gtior_b.oadflt;
+#endif
 
   for (int i = 0; i < (waveformBits - 1); i++) {
     gtioState[i] = gtioRunning.gtior;
   }
-  for (int i = (waveformBits - 1); i < (waveformBits + ifgBits); i++) {
+  for (int i = (waveformBits - 1); i < dshotBits; i++) {
     gtioState[i] = gtioStop.gtior;
   }
 }
@@ -128,15 +153,11 @@ DShotR4::gpt_gtioState_init()
 void
 DShotR4::gpt_init(void)
 {
-  // see variants/MINIMA/includes/ra/fsp/inc/api/r_ioport_api.h
-  const static uint32_t pin_cfg = IOPORT_CFG_PORT_DIRECTION_OUTPUT |
-                                  IOPORT_CFG_DRIVE_MID |
-                                  IOPORT_CFG_PERIPHERAL_PIN |
-                                  IOPORT_PERIPHERAL_GPT1;
   float default_duty = 0.0;
-  float freqHz = (float)(1.0 / dshot_timing[dshot_type].bit_duration_us * 1000.0 * 1000.0);
+  float freqHz = (float)(1.0 / dshot_timing[dshot_type].bit_duration_us * 1000.0 * 1000.0 * tolerance_hz);
 
   gpt_reg = (R_GPT0_Type *)((unsigned long)R_GPT0_BASE + (unsigned long)(0x0100 * gpt_Channel));
+  gpt_ChannelRegVal = 0x1 << gpt_Channel;
   gpt_gtioState_init();
 
   fsp_timer.begin(TIMER_MODE_PWM, GPT_TIMER, gpt_Channel, freqHz, default_duty, gpt_overflow_intr, this);
@@ -146,15 +167,17 @@ DShotR4::gpt_init(void)
   ext_cfg->gtior_setting.gtior = gtioStop.gtior;
 
   if (gpt_pwmChannelA_enable) {
-      pinPeripheral(gpt_pwmPinA, pin_cfg);
+      pinPeripheral(gpt_pwmPinA, pin_cfg_output);
   }
   if (gpt_pwmChannelB_enable) {
-      pinPeripheral(gpt_pwmPinB, pin_cfg);
+      pinPeripheral(gpt_pwmPinB, pin_cfg_output);
   }
   fsp_timer.open();
+  fsp_timer.stop();
+  fsp_timer.reset();
 
   // Get period count from current config.
-  timing_init();
+  update_timer_counts();
 
   // Get IRQn from current config.
   for (int i = 0; i < sizeof(R_ICU->IELSR)/sizeof(R_ICU->IELSR[0]); i++) {
@@ -164,13 +187,34 @@ DShotR4::gpt_init(void)
   }
 
   // Initialize waveforms
-  for (int i = 0; i < (waveformBits + ifgBits); i++) {
+  for (int i = 0; i < dshotBits; i++) {
     waveform[0][i] = waveform[1][i] = stop_count;
+#ifdef DEBUG_CHANNEL_A
+    waveform[0][i] = period_count / 2;
+#endif
+
   }
 }
 
 void
-DShotR4::dtc_info_init(transfer_info_t *info)
+DShotR4::gpt_dshot_reinit()
+{
+  float default_duty = 0.0;
+  float freqHz = (float)(1.0 / dshot_timing[dshot_type].bit_duration_us * 1000.0 * 1000.0 * tolerance_hz);
+
+  cancel_execution();
+
+  fsp_timer.set_frequency(freqHz); // this function starts timer automaticcaly.
+  fsp_timer.set_duty_cycle(default_duty, CHANNEL_A);
+  fsp_timer.set_duty_cycle(default_duty, CHANNEL_B);
+  fsp_timer.stop();
+  fsp_timer.reset();
+
+  update_timer_counts();
+}
+
+void
+DShotR4::dtc_dshot_info_init(transfer_info_t *info)
 {
   transfer_info_t *infop = info;
 
@@ -202,22 +246,49 @@ DShotR4::dtc_info_init(transfer_info_t *info)
     infop++;
   }
 
-  // GTIO pins
+  // GTIO pins / CHANNEL A & B
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
   infop->p_dest = (void *)&(gpt_reg->GTIOR);
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_INCREMENTED;
+  infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_END;
+  infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
+  infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
+  infop->transfer_settings_word_b.mode = TRANSFER_MODE_NORMAL;
+  infop->transfer_settings_word_b.irq = TRANSFER_IRQ_END;
+  infop->num_blocks = 0; // unused.
+  infop++;
+
+  // Stop Timer
+  infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
+  infop->p_dest = (void *)&(gpt_reg->GTSTP);
+  infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
+  infop->p_src = (void *)&(this->gpt_ChannelRegVal);
+  infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_EACH;
+  infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
+  infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
+  infop->transfer_settings_word_b.mode = TRANSFER_MODE_NORMAL;
+  infop->transfer_settings_word_b.irq = TRANSFER_IRQ_END;
+  infop->num_blocks = 0; // unused.
+  infop++;
+
+  // Clear Timer
+  infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
+  infop->p_dest = (void *)&(gpt_reg->GTCLR);
+  infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
+  infop->p_src = (void *)&(this->gpt_ChannelRegVal);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_DISABLED;
   infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
   infop->transfer_settings_word_b.mode = TRANSFER_MODE_NORMAL;
   infop->transfer_settings_word_b.irq = TRANSFER_IRQ_END;
   infop->num_blocks = 0; // unused.
+  infop++;
 
-  dtc_info_reset(info);
+  dtc_dshot_info_reset(info);
 }
 
 void
-DShotR4::dtc_info_reset(transfer_info_t *info)
+DShotR4::dtc_dshot_info_reset(transfer_info_t *info)
 {
   transfer_info_t *infop = info;
   uint16_t bits = waveformBits - 1;
@@ -240,18 +311,27 @@ DShotR4::dtc_info_reset(transfer_info_t *info)
     infop++;
   }
 
-  // disable GTIO pins.
+  // control GTIO pins.
   infop->p_src = &(gtioState[1]);
   infop->length = bits;
+  infop++;
+
+  // stop timer
+  infop->length = 1;
+  infop++;
+
+  // clear timer
+  infop->length = 1;
+  infop++;
 }
 
 void
-DShotR4::dtc_init(void)
+DShotR4::dtc_dshot_init(void)
 {
   assert(GPT_IRQn != FSP_INVALID_VECTOR);
 
-  dtc_info_init(dtc_info);
-  dtc_cfg.p_info = dtc_info;
+  dtc_dshot_info_init(dtc_dshot_info);
+  dtc_cfg.p_info = dtc_dshot_info;
 
   dtc_extcfg.activation_source = GPT_IRQn;
   dtc_cfg.p_extend = &dtc_extcfg;
@@ -268,8 +348,12 @@ DShotR4::tx_restart()
   assert(tx_busy == false);
 
   if (nextFrameUpdate) {
-    load_frame();
+    load_dshot_frame();
   }
+
+  dtc_dshot_info_reset(dtc_dshot_info);
+  R_DTC_Reconfigure(&dtc_ctrl, dtc_dshot_info);
+  R_DTC_Enable(&dtc_ctrl);
 
   if (gpt_pwmChannelA_enable) {
     fsp_timer.set_duty_cycle(waveform[0][0], CHANNEL_A);
@@ -279,12 +363,7 @@ DShotR4::tx_restart()
   }
   gpt_reg->GTIOR = gtioState[0];
 
-  dtc_info_reset(dtc_info);
-  R_DTC_Reconfigure(&dtc_ctrl, dtc_info);
-  R_DTC_Enable(&dtc_ctrl);
   tx_busy = true;
-
-  fsp_timer.reset();
   fsp_timer.start();
 
   return true;
@@ -296,26 +375,24 @@ DShotR4::tx_start()
   assert(fsp_timer.is_opened() == true);
 
   bool auto_restart_enabled = auto_restart;
-  
-  auto_restart = false;
-  while (tx_busy) {
-    yield();
-  }
 
-  fsp_timer.stop();
-  fsp_timer.reset();
-  R_DTC_Disable(&dtc_ctrl);
+  cancel_execution();
+
   auto_restart = auto_restart_enabled;
   nextFrameUpdate = true;
 
   return tx_restart();
 }
 
+
 /*
  * public
  */
-DShotR4::DShotR4(): tx_success(0), fsp_timer()
+DShotR4::DShotR4(float tr_period, float tr_t1h, float tr_t0h): tx_success(0), fsp_timer()
 {
+  this->tolerance_hz = tr_period;
+  this->tolerance_t1h = tr_t1h;
+  this->tolerance_t0h = tr_t0h;
 }
 
 DShotR4::~DShotR4()
@@ -339,7 +416,7 @@ DShotR4::init(enum DShotType type, bool biDir, uint8_t channel, bool useChannelA
   this->auto_restart = false;
 
   gpt_init();
-  dtc_init();
+  dtc_dshot_init();
 }
 
 bool
@@ -347,10 +424,7 @@ DShotR4::deinit()
 {
   transfer_properties_t dtc_prop;
 
-  auto_restart = false;
-  while(tx_busy) {
-    yield();
-  }
+  cancel_execution();
 
   if (R_DTC_InfoGet(&dtc_ctrl, &dtc_prop) == FSP_SUCCESS) {
     R_DTC_Disable(&dtc_ctrl);
@@ -362,6 +436,27 @@ DShotR4::deinit()
     fsp_timer.stop();
     fsp_timer.close();
   }
+}
+
+bool
+DShotR4::set_tolerance_hz(float tr_hz)
+{
+  tolerance_hz = tr_hz;
+  gpt_dshot_reinit();
+}
+
+bool
+DShotR4::set_tolerance_t1h(float tr_t1h)
+{
+  tolerance_t1h = tr_t1h;
+  gpt_dshot_reinit();
+}
+
+bool
+DShotR4::set_tolerance_t0h(float tr_t0h)
+{
+  tolerance_t0h = tr_t0h;
+  gpt_dshot_reinit();
 }
 
 bool
@@ -411,7 +506,7 @@ DShotR4::set_testPattern()
 }
 
 bool
-DShotR4::transmit(bool oneShot)
+DShotR4::transmit(int count)
 {
   if (fsp_timer.is_opened() == false) {
     return false;
@@ -419,14 +514,19 @@ DShotR4::transmit(bool oneShot)
   if ((!gpt_pwmChannelA_enable) && (!gpt_pwmChannelB_enable)) {
     return false;
   }
+  if (count == 0) {
+    // nothing to do.
+    return true;
+  }
 
-  if (auto_restart && oneShot == false) {
+  if (auto_restart && count < 0) {
     nextFrameUpdate = true;
     return true;
   }
 
-  if (oneShot) {
+  if (count > 0) {
     auto_restart = false;
+    auto_restart_count = count;
     tx_start();
     while(tx_busy) {
       yield();
@@ -435,6 +535,7 @@ DShotR4::transmit(bool oneShot)
   }
 
   auto_restart = true;
+  auto_restart_count = -1;
   return tx_start();
 }
 
@@ -447,11 +548,8 @@ DShotR4::suspend()
   if ((!gpt_pwmChannelA_enable) && (!gpt_pwmChannelB_enable)) {
     return false;
   }
-  auto_restart = false;
-  while (tx_busy) {
-    yield();
-  }
-  armed = false;
+
+  cancel_execution();
 
   return true;
 }
@@ -477,8 +575,6 @@ DShotR4::arm()
   set_throttle(CHANNEL_B, 48);
   transmit();
 
-  armed = true;
-
   return true;
 }
 
@@ -487,9 +583,9 @@ DShotR4::reset()
 {
   suspend();
   delay(1000);
-  gpt_reg->GTIOR = gtioReset.gtior;
+  gpt_reg->GTIOR = gtioHigh.gtior;
   delay(1000);
-  gpt_reg->GTIOR = gtioStop.gtior;
+  gpt_reg->GTIOR = gtioLow.gtior;
   delay(1000);
 }
 
@@ -498,3 +594,16 @@ DShotR4::get_ifg_us()
 {
   return dshot_ifg_us;
 }
+
+bool
+DShotR4::get_auto_restart()
+{
+  return auto_restart;
+}
+
+int
+DShotR4::get_auto_restart_count()
+{
+  return auto_restart_count;
+}
+

@@ -1,7 +1,10 @@
 struct shell_command_table {
   const char *name;
   bool (*exec)(char *);
-} shell_command[] = {
+};
+
+struct shell_command_table shell_command[] = {
+  {"reg", exec_reg},
   {"stat", exec_stat},
   {"arm", exec_arm},
   {"reset", exec_reset},
@@ -9,17 +12,78 @@ struct shell_command_table {
   {"disarm", exec_disarm},
   {"throttle", exec_throttle},
   {"commit", exec_commit},
+  {"bootloader", exec_bootloader},
   {"help", exec_help},
   {NULL, NULL}
 };
+
+struct shell_command_table bootloader_command[] = {
+  {"reg", exec_reg},
+  {"stat", exec_stat},
+  {"write", exec_bl_write},
+  {"exit", exec_bl_exit},
+  {NULL, NULL}
+};
+
+struct shell_command_table *current_table = shell_command;
+
+bool
+exec_reg(char *arg)
+{
+  R_GPT0_Type *gpt_reg;
+  int i = 4;
+  gpt_reg = (R_GPT0_Type *)((unsigned long)R_GPT0_BASE + (unsigned long)(0x0100 * i));
+
+  message("gpt_reg->GTCR  (%p) -> 0x%x\n", &(gpt_reg->GTCR), gpt_reg->GTCR);
+  message("gpt_reg->GTCNT (%p) -> 0x%x\n", &(gpt_reg->GTCNT), gpt_reg->GTCNT);
+  message("gpt_reg->GTPSR (%p) -> 0x%x\n", &(gpt_reg->GTPSR), gpt_reg->GTPSR);
+}
 
 bool
 exec_stat(char *arg)
 {
   message("--DShot status--\n");
-  message("tx_success: %d, tx_error: %d\n", DShot.tx_success, DShot.tx_error);
+  message("tx_success: %d\n", DShot.tx_success);
+  message("tx_error: %d\n", DShot.tx_error);
+  message("tx_serial_success: %d\n", DShot.tx_serial_success);
   message("--MSP status--\n");
   message("received: %d, error: %d\n", Msp.received, Msp.error);
+  message("--Variables--\n");
+  message("auto_restart: %s\n", DShot.get_auto_restart() ? "true" : "false");
+  message("auto_restart_count: %d\n", DShot.get_auto_restart_count());
+  message("IFG: %u\n", DShot.get_ifg_us());
+  return true;
+}
+
+bool
+exec_bl_write(char *arg)
+{
+  char *argp = arg;
+  int n = 0;
+
+  if (arg == NULL) {
+    message("need data to write.\n");
+    return false;
+  }
+
+  while (*argp != '\0') {
+    DShot.bl_write((uint8_t)*argp);
+    argp++;
+    n++;
+  }
+
+  message("written %d bytes.", n);
+  return true;
+}
+
+bool
+exec_bl_exit(char *arg)
+{
+  message("Finish bootloader session...");
+  DShot.bl_exit();
+  message("done.\n");
+  current_table = shell_command;
+
   return true;
 }
 
@@ -95,6 +159,16 @@ exec_commit(char *arg)
 }
 
 bool
+exec_bootloader(char *arg)
+{
+  message("Entering BLHeli bootloader mode...");
+  DShot.bl_enter();
+  message("done\n");
+  current_table = bootloader_command;
+  return true;
+}
+
+bool
 exec_help(char *arg)
 {
   show_command_list();
@@ -105,7 +179,7 @@ exec_help(char *arg)
 bool
 show_command_list()
 {
-  struct shell_command_table *tp = shell_command;
+  struct shell_command_table *tp = current_table;
 
   message("commands:");
   while (tp->name != NULL) {
@@ -120,7 +194,7 @@ show_command_list()
 bool
 shell(char *command, char *arg)
 {
-  struct shell_command_table *tp = shell_command;
+  struct shell_command_table *tp = current_table;
 
   if (strcmp(command, "?") == 0) {
     show_command_list();

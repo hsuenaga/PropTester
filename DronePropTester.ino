@@ -13,7 +13,7 @@
 
 static HX711 HX711;
 static DShotR4 DShot;
-static MSP Msp;
+static MSP Msp(Serial, DShot);
 
 #undef HX711_TEST
 #undef DSHOT_TEST
