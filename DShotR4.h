@@ -5,6 +5,11 @@
 
 #include "r_gpt.h"
 #include "r_dtc.h"
+#include "r_elc.h"
+#include "r_elc_api.h"
+#include "elc_defines.h"
+
+#define DEBUG_CHANNEL_A
 
 class DShotR4 {
   public:
@@ -48,9 +53,13 @@ class DShotR4 {
       DSHOT_CMD_SIGNAL_LINE_CONTINUOUS_ERPM_TELEMETRY = 33,
       DSHOT_CMD_MAX = 47,
     };
+    uint32_t suprious_intr;
     uint32_t tx_success;
     uint32_t tx_error;
     uint32_t tx_serial_success;
+    uint32_t rx_serial_detect;
+    uint32_t rx_serial_good_frames;
+    uint32_t rx_serial_bad_frames;
 
   private:
     enum GTCCR_Map {
@@ -63,7 +72,7 @@ class DShotR4 {
     };
 
     // see variants/MINIMA/includes/ra/fsp/inc/api/r_ioport_api.h
-    static const uint32_t pin_cfg_output = 
+    static const uint32_t pin_cfg_output_gpt = 
       IOPORT_CFG_PORT_DIRECTION_OUTPUT |
       IOPORT_CFG_DRIVE_MID |
       IOPORT_CFG_PERIPHERAL_PIN |
@@ -83,9 +92,7 @@ class DShotR4 {
       IOPORT_CFG_PORT_DIRECTION_INPUT |
       IOPORT_CFG_PULLUP_ENABLE |
       IOPORT_CFG_DRIVE_MID |
-      IOPORT_CFG_EVENT_FALLING_EDGE |
-      IOPORT_CFG_PERIPHERAL_PIN |
-      IOPORT_PERIPHERAL_GPT1;
+      IOPORT_CFG_EVENT_FALLING_EDGE;
 
     struct GTIO_PIN_MAP {
       int channel;
@@ -116,7 +123,7 @@ class DShotR4 {
 #else
 #error "Board is not supported."
 #endif
-    int inline pin2gptChannel(pin_size_t pin) {
+    inline int pin2gptChannel(pin_size_t pin) {
       for (int i = 0; sizeof(pinMap)/sizeof(pinMap[0]); i++) {
         if (pinMap[i].gtio_A == pin || pinMap[i].gtio_B == pin) {
           return pinMap[i].channel;
@@ -125,7 +132,7 @@ class DShotR4 {
       return -1;
     };
 
-    int inline pin2pwmChannel(pin_size_t pin) {
+    inline int pin2pwmChannel(pin_size_t pin) {
       for (int i = 0; sizeof(pinMap)/sizeof(pinMap[0]); i++) {
         if (pinMap[i].gtio_A == pin) {
           return (int)CHANNEL_A;
@@ -156,7 +163,6 @@ class DShotR4 {
       'B','L','H','e','l','i',
       0xF4,0x7D
     };
-    uint8_t blheli_bootinfo[8] = {};
 
     enum DShotType dshot_type;
     uint32_t period_count;
@@ -191,15 +197,28 @@ class DShotR4 {
     uint32_t waveform[2][dshotBits];
     uint32_t gtioState[dshotBits];
 
-    const static int serialBits = 12; // idle(1) + start(1) + data(8) + stop(1) + idle(1)
-    uint32_t serialData[2][serialBits];
-    uint32_t serialState[serialBits];
-    const uint8_t *serialTxData;
+    const static int serialTxBits = 12; // idle(1) + start(1) + data(8) + stop(1) + idle(1)
+    uint8_t serialTxLevel[2][serialTxBits];
+    uint8_t serialTxDebug[serialTxBits];
+    const uint8_t *serialTxPtr;
     int serialTxBytes;
+
+    const static int serialRxBits = 10; // start(1) + data(8) + stop(1)
+    uint8_t serialRxLevel[2][serialRxBits];
+    uint8_t serialRxDebug[serialRxBits];
+    const static int serialRxFIFOLen = 16;
+    uint8_t serialRxFIFO[serialRxFIFOLen];
+    uint8_t *serialRxFIFO_IN;
+    uint8_t *serialRxFIFO_OUT;
+    int serialRxBytes;
+    uint8_t serialRxBuff[serialRxFIFOLen];
+    uint8_t *serialRxBuff_OUT;
+    int serialRxBuff_Remain;
 
     // GPT
     bool tx_busy = false;
     bool tx_serial = false;
+    bool rx_serial = false;
     FspTimer fsp_timer;
     uint8_t gpt_Channel;
     uint32_t gpt_ChannelRegVal;
@@ -207,6 +226,8 @@ class DShotR4 {
     bool gpt_pwmChannelB_enable;
     pin_size_t gpt_pwmPinA;
     pin_size_t gpt_pwmPinB;
+    bsp_io_port_pin_t bspPinA;
+    bsp_io_port_pin_t bspPinB;
     IRQn_Type GPT_IRQn = FSP_INVALID_VECTOR;
     R_GPT0_Type *gpt_reg;
     gpt_gtior_setting_t gtioHigh;
@@ -219,37 +240,55 @@ class DShotR4 {
     transfer_cfg_t dtc_cfg;
     dtc_extended_cfg_t dtc_extcfg;
     transfer_info_t dtc_dshot_info[5];
-    transfer_info_t dtc_serial_info[3];
+    transfer_info_t dtc_serial_info[4];
+    inline bool dtc_is_open() {
+      transfer_properties_t dtc_prop;
+
+      if (R_DTC_InfoGet(&dtc_ctrl, &dtc_prop) == FSP_SUCCESS) {
+        return true;
+      }
+      return false;
+    }
+
+    // ELC
+    elc_instance_ctrl_t elc_ctrl;
 
     static void gpt_overflow_intr(timer_callback_args_t (*arg));
-    void tx_complete(timer_callback_args_t (*arg));
+    void tx_dshot_complete(timer_callback_args_t (*arg));
     void tx_serial_complete(timer_callback_args_t (*arg));
+    void rx_serial_complete(timer_callback_args_t (*arg));
 
     void update_timer_counts(void);
     void gpt_gtioState_init(void);
     void gpt_init();
-    void gpt_dshot_reinit();
-    void gpt_serial_reinit();
+    void gpt_dshot_init();
+    void gpt_serial_init();
 
     void dtc_dshot_info_init(transfer_info_t (*info));
     void dtc_dshot_info_reset(transfer_info_t (*info));
     void dtc_serial_info_tx_init(transfer_info_t (*info));
     void dtc_serial_info_tx_reset(transfer_info_t (*info));
+    void dtc_serial_info_rx_init(transfer_info_t (*info));
+    void dtc_serial_info_rx_reset(transfer_info_t (*info));
     void dtc_dshot_init(void);
     void dtc_serial_init(void);
 
+    void elc_link(int port);
+
     void load_dshot_frame(void);
-    void load_serial_frame(void);
+    void load_serial_frame(TimerPWMChannel_t ch = CHANNEL_B);
     bool tx_restart(void);
     bool tx_start(void);
     bool tx_serial_restart(void);
     bool tx_serial_start(const uint8_t *data, size_t len);
+    bool rx_serial_restart(bool initial = false);
+    bool rx_serial_start(void);
 
   public:
     DShotR4(float tr_hz = 1.05, float tr_t1h = 1.05, float tr_t0h = 0.95);
     ~DShotR4();
 
-    bool init(enum DShotType = DSHOT150, bool biDir = false, uint8_t channel = 4, bool useChannelA = true, bool useChannelB = true, pin_size_t pwmPinA = 0, pin_size_t pwmPinB = 1);
+    bool init(enum DShotType = DSHOT150, bool biDir = false, uint8_t channel = 4, bool useChannelA = true, bool useChannelB = true, pin_size_t pwmPinA = 1, pin_size_t pwmPinB = 0);
     bool deinit();
 
     bool set_tolerance_hz(float tr_hz);
@@ -268,12 +307,63 @@ class DShotR4 {
 
     bool bl_enter(void);
     bool bl_exit(void);
+    bool bl_open();
     int bl_read();
+    int bl_peek();
+    int bl_flush();
     int bl_write(uint8_t data);
 
-    uint32_t get_ifg_us(void);
-    bool get_auto_restart(void);
-    int get_auto_restart_count(void);
+    uint32_t get_ifg_us() {
+      return dshot_ifg_us;
+    };
+
+    bool get_auto_restart() {
+      return auto_restart;
+    };
+
+    int get_auto_restart_count() {
+      return auto_restart_count;
+    };
+
+    uint8_t get_channel() {
+      return gpt_Channel;
+    };
+
+    bsp_io_port_pin_t get_bspPinA() {
+      return bspPinA;
+    };
+
+    bsp_io_port_pin_t get_bspPinB() {
+      return bspPinB;
+    };
+
+    pin_size_t get_pwmPinA() {
+      return gpt_pwmPinA;
+    };
+
+    pin_size_t get_pwmPinB() {
+      return gpt_pwmPinB;
+    };
+
+    bool get_bl_rx_raw_buff(int ch, uint8_t *dst, size_t *len) {
+      if (*len < serialRxBits) {
+        *len = serialRxBits;
+        return false;
+      }
+      memcpy(dst, serialRxLevel[ch], serialRxBits);
+      *len = serialRxBits;
+      return true;
+    };
+
+    bool get_bl_rx_debug_buff(uint8_t *dst, size_t *len) {
+      if (*len < serialRxBits) {
+        *len = serialRxBits;
+        return false;
+      }
+      memcpy(dst, serialRxDebug, serialRxBits);
+      *len = serialRxBits;
+      return true;
+    };
 };
 
 #endif /* __DSHOTR4_H__ */
