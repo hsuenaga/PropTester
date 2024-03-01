@@ -8,7 +8,7 @@
 //---------------------------------------------------//
 // ピンの設定
 //---------------------------------------------------//
-#define pin_dout  8
+#define pin_data  8
 #define pin_slk   9
 
 static HX711 HX711;
@@ -22,7 +22,7 @@ void setup() {
   Serial.begin(115200);
 
 #ifdef HX711_TEST
-  HX711.init(pin_dout, pin_slk);
+  HX711.init(pin_data, pin_slk);
   HX711.reset();
   HX711.tare();
 #endif
@@ -34,14 +34,14 @@ void setup() {
 void
 AE_HX711_Print()
 {
-  char S1[80], Stmp[16];
+  char S1[80], TempStr[16];
   double value = HX711.getGram();
   long snapValue;
 
   snapValue = HX711.acquire();
-  dtostrf(value, 5, 3, Stmp);
+  dtostrf(value, 5, 3, TempStr);
 
-  snprintf(S1, sizeof(S1), "%s [g] (0x%08x)", Stmp, snapValue);
+  snprintf(S1, sizeof(S1), "%s [g] (0x%08x)", TempStr, snapValue);
   Serial.println(S1);
 }
 
