@@ -1,6 +1,6 @@
 #include "DShotR4.h"
 
-#define TX_DEBUG_LOW
+#undef TX_DEBUG_LOW
 
 void
 DShotR4::tx_serial_complete(timer_callback_args_t (*arg))
@@ -20,9 +20,7 @@ void
 DShotR4::rx_serial_complete(timer_callback_args_t (*arg))
 {
   rx_serial_detect++;
-
-
-  rx_serial_restart();
+  rx_serial_restart(false);
 
   return;
 }
@@ -348,7 +346,6 @@ DShotR4::rx_serial_restart(bool initial)
 
   gpt_reg->GTCNT_b.GTCNT = gpt_reg->GTPR_b.GTPR / 2;
   dtc_serial_info_rx_reset(dtc_serial_info);
-  //R_DTC_Reconfigure(&dtc_ctrl, dtc_serial_info);
   R_DTC_Enable(&dtc_ctrl);
 }
 
@@ -364,7 +361,7 @@ DShotR4::rx_serial_start()
   dtc_serial_info_rx_init(dtc_serial_info);
   gpt_reg->GTSSR_b.SSELCA = 1;
 
-  return rx_serial_restart();
+  return rx_serial_restart(true);
 }
 
 bool
@@ -486,7 +483,7 @@ int
 DShotR4::bl_flush()
 {
   int bytes;
-  
+
   noInterrupts();
   bytes = serialRxBytes;
   serialRxFIFO_IN = serialRxFIFO_OUT = serialRxFIFO;

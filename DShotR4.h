@@ -9,7 +9,7 @@
 #include "r_elc_api.h"
 #include "elc_defines.h"
 
-#define DEBUG_CHANNEL_A
+#undef DEBUG_CHANNEL_A
 
 class DShotR4 {
   public:
