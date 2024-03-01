@@ -1,5 +1,7 @@
 {
     "sketch": "DronePropTester.ino",
     "board": "arduino:renesas_uno:minima",
-    "output": "../vscode-build-DronePropTester"
+    "output": "../DronePropTester.build/",
+    "intelliSenseGen": "enable",
+    "port": "/dev/tty.usbmodem14301"
 }
