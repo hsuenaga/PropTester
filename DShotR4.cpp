@@ -39,7 +39,7 @@ DShotR4::gpt_gtioState_init()
   gtioLow.gtior_b.gtioa = gtioLow.gtior_b.gtiob = 0x05; // Low, Low, Low
   gtioLow.gtior_b.oadflt = gtioLow.gtior_b.obdflt = 0; // Low
 
-  // DShot wave forms  
+  // DShot wave forms
   gtioRunning.gtior = 0;
   gtioStop.gtior = 0;
 
@@ -57,7 +57,7 @@ DShotR4::gpt_gtioState_init()
     gtioStop.gtior_b.gtioa = gtioLow.gtior_b.gtioa;
     gtioStop.gtior_b.oadflt = gtioLow.gtior_b.oadflt;
   }
-  
+
   gtioRunning.gtior_b.obe = obe;
   gtioStop.gtior_b.obe = obe;
   if (dshotInvertB) {
@@ -98,11 +98,9 @@ DShotR4::gpt_init(void)
   // reserve GPT via FspTimer class to avoid conflict with Arduino-Core functions.
   fsp_timer.begin(TIMER_MODE_PWM, GPT_TIMER, gpt_Channel, default_freqHz, default_duty, gpt_overflow_intr, this);
   fsp_timer.setup_overflow_irq();
-  fsp_timer.set_source_start(GPT_SOURCE_GPT_A);
+  fsp_timer.set_source_start(GPT_SOURCE_GPT_A); // XXX: rectlicted event source...
   fsp_timer.add_pwm_extended_cfg();
-
-  gpt_extended_cfg_t *ext_cfg = (gpt_extended_cfg_t *)fsp_timer.get_cfg()->p_extend;
-  ext_cfg->gtior_setting.gtior = gtioStop.gtior;
+  ((gpt_extended_cfg_t *)fsp_timer.get_cfg()->p_extend)->gtior_setting.gtior = gtioStop.gtior;
   fsp_timer.open();
 
   // Get IRQn from current environment. need to update if fsp_timer.end() is called.
@@ -111,6 +109,25 @@ DShotR4::gpt_init(void)
       GPT_IRQn = (IRQn)i;
     }
   }
+}
+
+void
+DShotR4::dtc_init(void)
+{
+  assert(GPT_IRQn != FSP_INVALID_VECTOR);
+
+  memset(&dtc_ctrl, 0, sizeof(dtc_ctrl));
+  memset(dtc_info, sizeof(dtc_info), 0);
+  memset(&dtc_cfg, sizeof(dtc_cfg), 0);
+  memset(&dtc_extcfg, sizeof(dtc_extcfg), 0);
+
+  dtc_extcfg.activation_source = GPT_IRQn;
+
+  dtc_cfg.p_info = dtc_info;
+  dtc_cfg.p_extend = &dtc_extcfg;
+
+  fsp_err_t err = R_DTC_Open(&dtc_ctrl, &dtc_cfg);
+  assert(FSP_SUCCESS == err);
 }
 
 void
@@ -123,19 +140,19 @@ DShotR4::elc_link(int port)
   switch (port) {
     case 1:
       event = ELC_EVENT_IOPORT_EVENT_1;
-      break;    
+      break;
     case 2:
       event = ELC_EVENT_IOPORT_EVENT_2;
-      break;    
+      break;
     case 3:
       event = ELC_EVENT_IOPORT_EVENT_3;
-      break;    
+      break;
     case 4:
       event = ELC_EVENT_IOPORT_EVENT_4;
-      break;    
+      break;
     default:
       event = ELC_EVENT_NONE;
-      break;    
+      break;
   }
   R_ELC_LinkSet(&elc_ctrl, ELC_PERIPHERAL_GPT_A, event);
   R_ELC_Enable(&elc_ctrl);
@@ -152,12 +169,12 @@ DShotR4::DShotR4(float tr_period, float tr_t1h, float tr_t0h): fsp_timer(), seri
 }
 
 DShotR4::~DShotR4()
-{  
-  deinit();
+{
+  end();
 }
 
 bool
-DShotR4::init(enum DShotType type, bool biDir, uint8_t channel, bool useChannelA, bool useChannelB, pin_size_t pwmPinA, pin_size_t pwmPinB)
+DShotR4::begin(enum DShotType type, bool biDir, uint8_t channel, bool useChannelA, bool useChannelB, pin_size_t pwmPinA, pin_size_t pwmPinB)
 {
   this->dshot_type = type;
   this->gpt_Channel = channel;
@@ -174,6 +191,7 @@ DShotR4::init(enum DShotType type, bool biDir, uint8_t channel, bool useChannelA
   this->auto_restart = false;
 
   gpt_init();
+  dtc_init();
   elc_link(-1);
 
   // default protocol is DShot.
@@ -182,7 +200,7 @@ DShotR4::init(enum DShotType type, bool biDir, uint8_t channel, bool useChannelA
 }
 
 bool
-DShotR4::deinit()
+DShotR4::end()
 {
   cancel_execution();
 

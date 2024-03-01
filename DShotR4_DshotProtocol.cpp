@@ -1,6 +1,7 @@
 #include "DShotR4.h"
 
 #include "bsp_api.h"
+
 void
 DShotR4::tx_dshot_complete(timer_callback_args_t (*arg))
 {
@@ -34,7 +35,7 @@ DShotR4::load_dshot_frame()
   // NEVER call while DTC is running.
   assert(tx_busy == false);
 
-  for (int i = 0; i < 16; i++) {    
+  for (int i = 0; i < 16; i++) {
     bool bit;
 
     if (gpt_pwmChannelA_enable) {
@@ -103,9 +104,9 @@ DShotR4::gpt_dshot_init()
 }
 
 void
-DShotR4::dtc_dshot_info_init(transfer_info_t *info)
+DShotR4::dtc_dshot_info_init()
 {
-  transfer_info_t *infop = info;
+  transfer_info_t *infop = dtc_info;
 
   // transfer waveform (channel A)
   if (gpt_pwmChannelA_enable) {
@@ -173,13 +174,13 @@ DShotR4::dtc_dshot_info_init(transfer_info_t *info)
   infop->num_blocks = 0; // unused.
   infop++;
 
-  dtc_dshot_info_reset(info);
+  assert(infop <= &dtc_info[dtc_info_len]);
 }
 
 void
-DShotR4::dtc_dshot_info_reset(transfer_info_t *info)
+DShotR4::dtc_dshot_info_reset()
 {
-  transfer_info_t *infop = info;
+  transfer_info_t *infop = dtc_info;
   uint16_t bits = waveformBits - 1;
 
   if (auto_restart) {
@@ -212,6 +213,8 @@ DShotR4::dtc_dshot_info_reset(transfer_info_t *info)
   // clear timer
   infop->length = 1;
   infop++;
+
+  assert(infop <= &dtc_info[dtc_info_len]);
 }
 
 void
@@ -219,29 +222,21 @@ DShotR4::dtc_dshot_init(void)
 {
   assert(GPT_IRQn != FSP_INVALID_VECTOR);
 
-  dtc_dshot_info_init(dtc_dshot_info);
-  dtc_cfg.p_info = dtc_dshot_info;
-
-  dtc_extcfg.activation_source = GPT_IRQn;
-  dtc_cfg.p_extend = &dtc_extcfg;
-
-  fsp_err_t err = R_DTC_Open(&dtc_ctrl, &dtc_cfg);
-  assert(FSP_SUCCESS == err);
+  dtc_dshot_info_init();
+  dtc_dshot_info_reset();
 }
 
 bool
 DShotR4::tx_restart()
 {
   // can be called from interrupt context.
-  assert(fsp_timer.is_opened() == true);
   assert(tx_busy == false);
 
   if (nextFrameUpdate) {
     load_dshot_frame();
   }
 
-  dtc_dshot_info_reset(dtc_dshot_info);
-  R_DTC_Reconfigure(&dtc_ctrl, dtc_dshot_info);
+  dtc_dshot_info_reset();
   R_DTC_Enable(&dtc_ctrl);
 
   if (gpt_pwmChannelA_enable) {

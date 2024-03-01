@@ -27,7 +27,7 @@ void setup() {
   HX711.tare();
 #endif
 
-  DShot.init(DShotR4::DSHOT300);
+  DShot.begin(DShotR4::DSHOT300);
   DShot.reset();
 }
 
@@ -45,8 +45,8 @@ AE_HX711_Print()
   Serial.println(S1);
 }
 
-void loop() 
-{ 
+void loop()
+{
   static uint32_t count = 0;
   static unsigned long last_time = 0;
   static uint16_t dshot_throttle = 0;
@@ -59,7 +59,7 @@ void loop()
   }
 
 #ifdef HX711_TEST
-  if (HX711.isDataReady()) 
+  if (HX711.isDataReady())
   {
     HX711.acquire();
 //    AE_HX711_Print();

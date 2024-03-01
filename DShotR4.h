@@ -72,18 +72,18 @@ class DShotR4 {
     };
 
     // see variants/MINIMA/includes/ra/fsp/inc/api/r_ioport_api.h
-    static const uint32_t pin_cfg_output_gpt = 
+    static const uint32_t pin_cfg_output_gpt =
       IOPORT_CFG_PORT_DIRECTION_OUTPUT |
       IOPORT_CFG_DRIVE_MID |
       IOPORT_CFG_PERIPHERAL_PIN |
       IOPORT_PERIPHERAL_GPT1;
 
-    static const uint32_t pin_cfg_output_high = 
+    static const uint32_t pin_cfg_output_high =
       IOPORT_CFG_PORT_DIRECTION_OUTPUT |
       IOPORT_CFG_PORT_OUTPUT_HIGH |
       IOPORT_CFG_DRIVE_MID;
 
-    static const uint32_t pin_cfg_output_low = 
+    static const uint32_t pin_cfg_output_low =
       IOPORT_CFG_PORT_DIRECTION_OUTPUT |
       IOPORT_CFG_PORT_OUTPUT_LOW |
       IOPORT_CFG_DRIVE_MID;
@@ -239,8 +239,8 @@ class DShotR4 {
     dtc_instance_ctrl_t dtc_ctrl;
     transfer_cfg_t dtc_cfg;
     dtc_extended_cfg_t dtc_extcfg;
-    transfer_info_t dtc_dshot_info[5];
-    transfer_info_t dtc_serial_info[4];
+    static const size_t dtc_info_len = 5;
+    transfer_info_t dtc_info[dtc_info_len];
     inline bool dtc_is_open() {
       transfer_properties_t dtc_prop;
 
@@ -264,12 +264,13 @@ class DShotR4 {
     void gpt_dshot_init();
     void gpt_serial_init();
 
-    void dtc_dshot_info_init(transfer_info_t (*info));
-    void dtc_dshot_info_reset(transfer_info_t (*info));
-    void dtc_serial_info_tx_init(transfer_info_t (*info));
-    void dtc_serial_info_tx_reset(transfer_info_t (*info));
-    void dtc_serial_info_rx_init(transfer_info_t (*info));
-    void dtc_serial_info_rx_reset(transfer_info_t (*info));
+    void dtc_dshot_info_init(void);
+    void dtc_dshot_info_reset(void);
+    void dtc_serial_info_tx_init(void);
+    void dtc_serial_info_tx_reset(void);
+    void dtc_serial_info_rx_init(void);
+    void dtc_serial_info_rx_reset(void);
+    void dtc_init(void);
     void dtc_dshot_init(void);
     void dtc_serial_init(void);
 
@@ -288,8 +289,8 @@ class DShotR4 {
     DShotR4(float tr_hz = 1.05, float tr_t1h = 1.05, float tr_t0h = 0.95);
     ~DShotR4();
 
-    bool init(enum DShotType = DSHOT150, bool biDir = false, uint8_t channel = 4, bool useChannelA = true, bool useChannelB = true, pin_size_t pwmPinA = 1, pin_size_t pwmPinB = 0);
-    bool deinit();
+    bool begin(enum DShotType = DSHOT150, bool biDir = false, uint8_t channel = 4, bool useChannelA = true, bool useChannelB = true, pin_size_t pwmPinA = 1, pin_size_t pwmPinB = 0);
+    bool end();
 
     bool set_tolerance_hz(float tr_hz);
     bool set_tolerance_t1h(float tr_t1h);

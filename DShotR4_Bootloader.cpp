@@ -59,27 +59,15 @@ DShotR4::gpt_serial_init()
 void
 DShotR4::dtc_serial_init(void)
 {
-  assert(GPT_IRQn != FSP_INVALID_VECTOR);
-
-  if (dtc_is_open()) {
-    R_DTC_Close(&dtc_ctrl);
-  }
-
-  dtc_serial_info_tx_init(dtc_serial_info);
-  dtc_cfg.p_info = dtc_serial_info;
-
-  dtc_extcfg.activation_source = GPT_IRQn;
-  dtc_cfg.p_extend = &dtc_extcfg;
-
-  fsp_err_t err = R_DTC_Open(&dtc_ctrl, &dtc_cfg);
-  assert(FSP_SUCCESS == err);
+  dtc_serial_info_rx_init();
+  dtc_serial_info_rx_reset();
 
   for (int i = 0; i < serialTxBits; i++) {
     serialTxLevel[0][i] = serialTxLevel[1][i] = (pin_cfg_input & 0xFF);
     #ifdef TX_DEBUG_LOW
-    serialTxDebug[i] = pin_cfg_output_low & 0xFF; 
+    serialTxDebug[i] = pin_cfg_output_low & 0xFF;
     #else
-    serialTxDebug[i] = ((i % 2 == 0) ? pin_cfg_output_high : pin_cfg_output_low) & 0xFF; 
+    serialTxDebug[i] = ((i % 2 == 0) ? pin_cfg_output_high : pin_cfg_output_low) & 0xFF;
     #endif
   }
 
@@ -90,9 +78,9 @@ DShotR4::dtc_serial_init(void)
 }
 
 void
-DShotR4::dtc_serial_info_tx_init(transfer_info_t *info)
+DShotR4::dtc_serial_info_tx_init()
 {
-  transfer_info_t *infop = info;
+  transfer_info_t *infop = dtc_info;
   static const int zero = 0;
   int bsp_portA = bspPinA >> IOPORT_PRV_PORT_OFFSET;
   int bsp_portB = bspPinB >> IOPORT_PRV_PORT_OFFSET;
@@ -150,12 +138,14 @@ DShotR4::dtc_serial_info_tx_init(transfer_info_t *info)
   infop->transfer_settings_word_b.irq = TRANSFER_IRQ_END;
   infop->num_blocks = 0; // unused.
   infop++;
+
+  assert(infop <= &dtc_info[dtc_info_len]);
 }
 
 void
-DShotR4::dtc_serial_info_tx_reset(transfer_info_t *info)
+DShotR4::dtc_serial_info_tx_reset()
 {
-  transfer_info_t *infop = info;
+  transfer_info_t *infop = dtc_info;
   uint16_t bits = serialTxBits;
 
   // update GTIO state / ChannelA
@@ -179,12 +169,14 @@ DShotR4::dtc_serial_info_tx_reset(transfer_info_t *info)
   // clear timer
   infop->length = 1;
   infop++;
+
+  assert(infop <= &dtc_info[dtc_info_len]);
 }
 
 void
-DShotR4::dtc_serial_info_rx_init(transfer_info_t *info)
+DShotR4::dtc_serial_info_rx_init()
 {
-  transfer_info_t *infop = info;
+  transfer_info_t *infop = dtc_info;
   static const int half = gpt_reg->GTPR_b.GTPR / 2;
   int bsp_portA = bspPinA >> IOPORT_PRV_PORT_OFFSET;
   int bsp_portB = bspPinB >> IOPORT_PRV_PORT_OFFSET;
@@ -247,12 +239,14 @@ DShotR4::dtc_serial_info_rx_init(transfer_info_t *info)
   infop->transfer_settings_word_b.irq = TRANSFER_IRQ_END;
   infop->num_blocks = 0; // unused.
   infop++;
+
+  assert(infop <= &dtc_info[dtc_info_len]);
 }
 
 void
-DShotR4::dtc_serial_info_rx_reset(transfer_info_t *info)
+DShotR4::dtc_serial_info_rx_reset()
 {
-  transfer_info_t *infop = info;
+  transfer_info_t *infop = dtc_info;
   uint16_t bits = serialRxBits;
 
   // update GTIO state / ChannelA
@@ -277,6 +271,8 @@ DShotR4::dtc_serial_info_rx_reset(transfer_info_t *info)
   // clear timer
   infop->length = 1;
   infop++;
+
+  assert(infop <= &dtc_info[dtc_info_len]);
 }
 
 bool
@@ -287,7 +283,7 @@ DShotR4::tx_serial_restart()
   serialTxPtr++;
   serialTxBytes--;
 
-  dtc_serial_info_tx_reset(dtc_serial_info);
+  dtc_serial_info_tx_reset();
   R_DTC_Enable(&dtc_ctrl);
 
   tx_busy = true;
@@ -303,7 +299,7 @@ DShotR4::tx_serial_start(const uint8_t *data, size_t len)
 
   gpt_reg->GTSSR_b.SSELCA = 0;
 
-  dtc_serial_info_tx_init(dtc_serial_info);
+  dtc_serial_info_tx_init();
 
   tx_serial = true;
   rx_serial = false;
@@ -335,7 +331,7 @@ DShotR4::rx_serial_restart(bool initial)
         (*serialRxFIFO_IN) |= RxLevelHigh(i) ? (0x80): 0;
       }
       if (++serialRxFIFO_IN >= &serialRxFIFO[serialRxFIFOLen]) {
-        serialRxFIFO_IN = serialRxFIFO;        
+        serialRxFIFO_IN = serialRxFIFO;
       }
       if (++serialRxBytes > serialRxFIFOLen) {
         serialRxBytes = serialRxFIFOLen;
@@ -345,7 +341,7 @@ DShotR4::rx_serial_restart(bool initial)
   }
 
   gpt_reg->GTCNT_b.GTCNT = gpt_reg->GTPR_b.GTPR / 2;
-  dtc_serial_info_rx_reset(dtc_serial_info);
+  dtc_serial_info_rx_reset();
   R_DTC_Enable(&dtc_ctrl);
 }
 
@@ -357,8 +353,8 @@ DShotR4::rx_serial_start()
 
   serialRxFIFO_IN = serialRxFIFO_OUT = serialRxFIFO;
   serialRxBytes = 0;
-  
-  dtc_serial_info_rx_init(dtc_serial_info);
+
+  dtc_serial_info_rx_init();
   gpt_reg->GTSSR_b.SSELCA = 1;
 
   return rx_serial_restart(true);
@@ -376,7 +372,7 @@ DShotR4::bl_enter()
   if (gpt_pwmChannelB_enable) {
       pinPeripheral(gpt_pwmPinB, pin_cfg_output_high);
   }
-  
+
   // Start serial communication @ 19200 bps, 1 start bit, 1 stop bit, LSB first, 8 databits.
   // bit speed: 52 us
   gpt_serial_init();
@@ -423,7 +419,7 @@ DShotR4::bl_exit()
   if (gpt_pwmChannelB_enable) {
       pinPeripheral(gpt_pwmPinB, pin_cfg_output_gpt);
   }
-    
+
   return true;
 }
 
