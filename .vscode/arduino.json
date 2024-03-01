@@ -1,0 +1,5 @@
+{
+    "sketch": "DronePropTester.ino",
+    "board": "arduino:renesas_uno:minima",
+    "output": "../vscode-build-DronePropTester"
+}
