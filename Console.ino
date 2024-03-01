@@ -2,11 +2,14 @@ char consoleBuffer[256];
 char *consoleBufferp = consoleBuffer;
 const char *consoleEndp = consoleBufferp + sizeof(consoleBuffer) - 1;
 bool lineCompleted = false;
+bool skipLF = false;
 bool consoleEcho = true;
-enum consoleState_t {
-  DEFAULT,
+enum consoleState_t
+{
+  DEFAULT = 0,
   MSP
-} consoleState = DEFAULT;
+};
+enum consoleState_t consoleState = DEFAULT;
 
 int
 message(const char *fmt, ...)
@@ -40,19 +43,26 @@ consoleReceive(void)
     if (Msp.receive(byte)) {
       return true;
     }
-    consoleState = DEFAULT;    
+    consoleState = DEFAULT;
   }
 
   switch (byte) {
     case 0x0d:
-      // ignore 0x0d
+      lineCompleted = true;
+      skipLF = true;
+      // ignore next 0x0a
       break;
     case 0x0a:
+      if (skipLF) {
+        skipLF = false;
+        break;
+      }
       lineCompleted = true;
-      Serial.println("");
       break;
     default:
-      if (!isprint(byte)) {
+      skipLF = false;
+      if (!isprint(byte))
+      {
         break;
       }
       if (consoleBufferp < consoleEndp) {
@@ -66,6 +76,7 @@ consoleReceive(void)
   if (!lineCompleted) {
     return false;
   }
+  Serial.println("");
 
   *consoleBufferp = '\0';
   consoleBufferp = consoleBuffer;
