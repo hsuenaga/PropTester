@@ -16,52 +16,58 @@ private:
 	pin_size_t digitalPin;
 	uint32_t bitRate;
 	bsp_io_port_pin_t bspPin;
-	R_GPT0_Type *gpt_reg;
-	uint32_t gpt_stopVal;
+	int bspPort;
+	int bspPinOffset;
+	R_GPT0_Type *gptReg;
+	uint32_t pinCfgSave;
 
-	static const uint32_t pin_cfg_output_high =
+	static const uint32_t pinCfgOutputHigh =
 	    IOPORT_CFG_PORT_DIRECTION_OUTPUT |
 	    IOPORT_CFG_PORT_OUTPUT_HIGH |
 	    IOPORT_CFG_DRIVE_MID;
 
-	static const uint32_t pin_cfg_output_low =
-	    IOPORT_CFG_PORT_DIRECTION_OUTPUT |
-	    IOPORT_CFG_PORT_OUTPUT_LOW |
-	    IOPORT_CFG_DRIVE_MID;
+    static const uint32_t pinCfgOutputLow =
+      IOPORT_CFG_PORT_DIRECTION_OUTPUT |
+      IOPORT_CFG_PORT_OUTPUT_LOW |
+      IOPORT_CFG_DRIVE_MID;
 
-	static const uint32_t pin_cfg_input =
+	static const uint32_t pinCfgInput =
 	    IOPORT_CFG_PORT_DIRECTION_INPUT |
 	    IOPORT_CFG_PULLUP_ENABLE |
 	    IOPORT_CFG_DRIVE_MID |
 	    IOPORT_CFG_EVENT_FALLING_EDGE;
 
-	const static int serialTxBits = 12; // idle(1) + start(1) + data(8) + stop(1) + idle(1)
-	uint8_t serialTxLevel[serialTxBits];
-	uint8_t serialTxDebug[serialTxBits];
-	const uint8_t *serialTxPtr;
-	int serialTxBytes;
+	const static int txBits = 12; // idle(1) + start(1) + data(8) + stop(1) + idle(1)
+	uint8_t txPFSBY[txBits];
+	uint8_t txDebug[txBits];
+	const uint8_t *txPtr;
+	int txBytes;
 
-	const static int serialRxBits = 10; // start(1) + data(8) + stop(1)
-	uint8_t serialRxLevel[serialRxBits];
-	uint8_t serialRxDebug[serialRxBits];
-	const static int serialRxFIFOLen = 16;
-	uint8_t serialRxFIFO[serialRxFIFOLen];
-	uint8_t *serialRxFIFO_IN;
-	uint8_t *serialRxFIFO_OUT;
-	int serialRxBytes;
-	uint8_t serialRxBuff[serialRxFIFOLen];
-	uint8_t *serialRxBuff_OUT;
-	int serialRxBuff_Remain;
+	const static int rxBits = 10; // start(1) + data(8) + stop(1)
+	uint8_t rxPFSBY[rxBits];
+	uint8_t rxDebug[rxBits];
+	const static int rxFIFOLen = 16;
+	uint8_t rxFIFO[rxFIFOLen];
+	uint8_t *rxFIFO_IN;
+	uint8_t *rxFIFO_OUT;
+	int rxFIFO_Bytes;
+	uint8_t rxBuffer[rxFIFOLen];
+	uint8_t *rxBuffer_OUT;
+	int rxBuffer_Bytes;
 
 	// external instances
-	FspTimer &fsp_timer;
-	dtc_instance_ctrl_t &dtc_ctrl;
-	transfer_info_t *dtc_info;
-	size_t dtc_info_len;
+	FspTimer &fspTimer;
+	dtc_instance_ctrl_t &dtcCtrl;
+	transfer_info_t *dtcInfo;
+	size_t dtcInfoLen;
 
 	// ELC
-	elc_instance_ctrl_t elc_ctrl;
+	elc_instance_ctrl_t elcCtrl;
 	void elc_link(int port);
+
+	// interrupt handlers
+	void tx_serial_complete(timer_callback_args_t(*arg));
+	void rx_serial_complete(timer_callback_args_t(*arg));
 
 	void gpt_serial_init();
 	void dtc_serial_info_tx_init(void);
@@ -78,16 +84,21 @@ private:
 	bool rx_serial_start(void);
 
 public:
-	uint32_t tx_busy;
-	uint32_t tx_serial_success;
-	uint32_t rx_serial_detect;
-	uint32_t rx_serial_good_frames;
-	uint32_t rx_serial_bad_frames;
+	struct HalfDuplexSerialCoreCounter_t {		
+		uint32_t tx_success;
+		uint32_t rx_detect;
+		uint32_t rx_good_frames;
+		uint32_t rx_bad_frames;
+		uint32_t spurious_interrupts;
+	} Counter;
+	bool tx_busy;
 	bool tx_serial = false;
 	bool rx_serial = false;
 
 	HalfDuplexSerialCore(FspTimer &timer, dtc_instance_ctrl_t &dtc, transfer_info_t *info);
 	~HalfDuplexSerialCore();
+
+	void overflow_interrupt(timer_callback_args_t(*arg));
 
 	void begin(TimerPWMChannel_t ch, pin_size_t pin, uint32_t bps = 19200);
 	void end();
@@ -101,30 +112,28 @@ public:
 	int read(void) override;
 	int peek(void) override;
 
-	void tx_serial_complete(timer_callback_args_t(*arg));
-	void rx_serial_complete(timer_callback_args_t(*arg));
 
 	bool get_rx_raw_buff(uint8_t *dst, size_t *len)
 	{
-		if (*len < serialRxBits)
+		if (*len < rxBits)
 		{
-			*len = serialRxBits;
+			*len = rxBits;
 			return false;
 		}
-		memcpy(dst, serialRxLevel, serialRxBits);
-		*len = serialRxBits;
+		memcpy(dst, rxPFSBY, rxBits);
+		*len = rxBits;
 		return true;
 	};
 
 	bool get_rx_debug_buff(uint8_t *dst, size_t *len)
 	{
-		if (*len < serialRxBits)
+		if (*len < rxBits)
 		{
-			*len = serialRxBits;
+			*len = rxBits;
 			return false;
 		}
-		memcpy(dst, serialRxDebug, serialRxBits);
-		*len = serialRxBits;
+		memcpy(dst, rxDebug, rxBits);
+		*len = rxBits;
 		return true;
 	};
 };

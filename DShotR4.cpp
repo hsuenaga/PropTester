@@ -10,11 +10,8 @@ DShotR4::gpt_overflow_intr(timer_callback_args_t (*arg))
     return;
   }
 
-  if (instance->tx_serial) {
-    return instance->serialCore.tx_serial_complete(arg);
-  }
-  else if (instance->rx_serial) {
-    return instance->serialCore.rx_serial_complete(arg);
+  if (instance->tx_serial || instance->rx_serial) {
+    return instance->serialCore.overflow_interrupt(arg);
   }
   else {
     return instance->tx_dshot_complete(arg);

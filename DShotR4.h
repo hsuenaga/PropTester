@@ -280,7 +280,7 @@ class DShotR4 {
     bool bl_exit(void);
     bool bl_open(void);
     int bl_read(void);
-    int bl_write(uint8_t data);
+    size_t bl_write(uint8_t data);
     void bl_flush(void);
     int bl_available(void);
 

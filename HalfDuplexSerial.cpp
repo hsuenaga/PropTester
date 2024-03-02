@@ -1,13 +1,24 @@
 #include "HalfDuplexSerial.h"
 
-#undef TX_DEBUG_LOW
+void
+HalfDuplexSerialCore::overflow_interrupt(timer_callback_args_t (*arg))
+{
+  if (tx_serial) {
+    return tx_serial_complete(arg);
+  }
+  else if (rx_serial) {
+    return rx_serial_complete(arg);
+  }
+  Counter.spurious_interrupts++;
+  return;
+}
 
 void
 HalfDuplexSerialCore::tx_serial_complete(timer_callback_args_t (*arg))
 {
   tx_busy = false;
-  tx_serial_success++;
-  if (serialTxBytes > 0) {
+  Counter.tx_success++;
+  if (txBytes > 0) {
     tx_serial_restart();
     return;
   }
@@ -19,7 +30,7 @@ HalfDuplexSerialCore::tx_serial_complete(timer_callback_args_t (*arg))
 void
 HalfDuplexSerialCore::rx_serial_complete(timer_callback_args_t (*arg))
 {
-  rx_serial_detect++;
+  Counter.rx_detect++;
   rx_serial_restart(false);
 
   return;
@@ -29,18 +40,18 @@ void
 HalfDuplexSerialCore::load_serial_frame(TimerPWMChannel_t ch)
 {
   assert(tx_busy == false);
-  assert(serialTxBits >= 12);
+  assert(txBits >= 12);
 
-  uint8_t *p = serialTxLevel;
+  uint8_t *p = txPFSBY;
 
-  *p++ = pin_cfg_input; // idle
-  *p++ = pin_cfg_output_low; // start bit
+  *p++ = pinCfgInput; // idle
+  *p++ = pinCfgOutputLow; // start bit
   for (int i = 0; i < 8; i++) {
-    bool bit = ((*serialTxPtr >> i) & 0x1) == 0x1;
-    *p++ = (bit ? pin_cfg_output_high : pin_cfg_output_low) & 0xFF;
+    bool bit = ((*txPtr >> i) & 0x1) == 0x1;
+    *p++ = (bit ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
   }
-  *p++ = pin_cfg_output_high; // stop bit
-  *p++ = pin_cfg_input; // idle
+  *p++ = pinCfgOutputHigh; // stop bit
+  *p++ = pinCfgInput; // idle
 }
 
 void
@@ -48,11 +59,11 @@ HalfDuplexSerialCore::gpt_serial_init()
 {
   float default_duty = 0.0;
 
-  fsp_timer.set_frequency((float)bitRate); // this function starts timer automatically.
-  fsp_timer.stop();
-  fsp_timer.set_duty_cycle(default_duty, CHANNEL_A);
-  fsp_timer.set_duty_cycle(default_duty, CHANNEL_B);
-  fsp_timer.reset();
+  fspTimer.set_frequency((float)bitRate); // this function starts timer automatically.
+  fspTimer.stop();
+  fspTimer.set_duty_cycle(default_duty, CHANNEL_A);
+  fspTimer.set_duty_cycle(default_duty, CHANNEL_B);
+  fspTimer.reset();
 }
 
 void
@@ -61,14 +72,14 @@ HalfDuplexSerialCore::dtc_serial_init(void)
   dtc_serial_info_rx_init();
   dtc_serial_info_rx_reset();
 
-  for (int i = 0; i < serialTxBits; i++) {
-    serialTxLevel[i] = (pin_cfg_input & 0xFF);
-    serialTxDebug[i] = ((i % 2 == 0) ? pin_cfg_output_high : pin_cfg_output_low) & 0xFF;
+  for (int i = 0; i < txBits; i++) {
+    txPFSBY[i] = (pinCfgInput & 0xFF);
+    txDebug[i] = ((i % 2 == 0) ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
   }
 
-  for (int i = 0; i < serialRxBits; i++) {
-    serialRxLevel[i] = 0xff;
-    serialRxDebug[i] = ((i % 2 == 0) ? pin_cfg_output_high : pin_cfg_output_low) & 0xFF;
+  for (int i = 0; i < rxBits; i++) {
+    rxPFSBY[i] = 0xff;
+    rxDebug[i] = ((i % 2 == 0) ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
   }
 }
 
@@ -78,8 +89,8 @@ HalfDuplexSerialCore::elc_link(int port)
   elc_event_t event = ELC_EVENT_NONE;
   static const elc_cfg_t elc_cfg = { ELC_EVENT_NONE }; // can we use g_elc_cfg??
 
-  R_ELC_Open(&elc_ctrl, &elc_cfg);
-  R_ELC_Disable(&elc_ctrl);
+  R_ELC_Open(&elcCtrl, &elc_cfg);
+  R_ELC_Disable(&elcCtrl);
   switch (port) {
     case 1:
       event = ELC_EVENT_IOPORT_EVENT_1;
@@ -97,22 +108,20 @@ HalfDuplexSerialCore::elc_link(int port)
       event = ELC_EVENT_NONE;
       break;
   }
-  R_ELC_LinkSet(&elc_ctrl, ELC_PERIPHERAL_GPT_A, event);
-  R_ELC_Enable(&elc_ctrl);
+  R_ELC_LinkSet(&elcCtrl, ELC_PERIPHERAL_GPT_A, event);
+  R_ELC_Enable(&elcCtrl);
 }
 
 void
 HalfDuplexSerialCore::dtc_serial_info_tx_init()
 {
-  transfer_info_t *infop = dtc_info;
-  static const int half = gpt_reg->GTPR_b.GTPR / 2;
-  int bsp_port = bspPin >> IOPORT_PRV_PORT_OFFSET;
-  int bsp_pinOffset = bspPin & BSP_IO_PRV_8BIT_MASK;
-  void *REG_PFS = (void *)(&R_PFS->PORT[bsp_port].PIN[bsp_pinOffset].PmnPFS_BY);
+  transfer_info_t *infop = dtcInfo;
+  static uint32_t half = gptReg->GTPR_b.GTPR / 2;
+	static uint32_t stop = 0x1 << fspTimer.get_channel();
 
   // GTIO pins (CHANNEL A)
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_dest = REG_PFS;
+  infop->p_dest = (void *)&(R_PFS->PORT[bspPort].PIN[bspPinOffset].PmnPFS_BY);
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_INCREMENTED;
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_END;
   infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
@@ -124,9 +133,9 @@ HalfDuplexSerialCore::dtc_serial_info_tx_init()
 
   // stop timer
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_dest = (void *)&(gpt_reg->GTSTP);
+  infop->p_dest = (void *)&(gptReg->GTSTP);
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_src = (void *)&(gpt_stopVal);
+  infop->p_src = (void *)&(stop);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_END;
   infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
@@ -137,7 +146,7 @@ HalfDuplexSerialCore::dtc_serial_info_tx_init()
 
   // clear timer
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_dest = (void *)&(gpt_reg->GTCNT);
+  infop->p_dest = (void *)&(gptReg->GTCNT);
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
   infop->p_src = (void *)&(half);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_DISABLED;
@@ -148,17 +157,17 @@ HalfDuplexSerialCore::dtc_serial_info_tx_init()
   infop->num_blocks = 0; // unused.
   infop++;
 
-  assert(infop <= &dtc_info[dtc_info_len]);
+  assert(infop <= &dtcInfo[dtcInfoLen]);
 }
 
 void
 HalfDuplexSerialCore::dtc_serial_info_tx_reset()
 {
-  transfer_info_t *infop = dtc_info;
-  uint16_t bits = serialTxBits;
+  transfer_info_t *infop = dtcInfo;
+  uint16_t bits = txBits;
 
   // update GTIO state
-  infop->p_src = &(serialTxLevel[0]);
+  infop->p_src = &(txPFSBY[0]);
   infop->length = bits;
   infop++;
 
@@ -170,22 +179,20 @@ HalfDuplexSerialCore::dtc_serial_info_tx_reset()
   infop->length = 1;
   infop++;
 
-  assert(infop <= &dtc_info[dtc_info_len]);
+  assert(infop <= &dtcInfo[dtcInfoLen]);
 }
 
 void
 HalfDuplexSerialCore::dtc_serial_info_rx_init()
 {
-  transfer_info_t *infop = dtc_info;
-  static const int half = gpt_reg->GTPR_b.GTPR / 2;
-  int bsp_port = bspPin >> IOPORT_PRV_PORT_OFFSET;
-  int bsp_pinOffset = bspPin & BSP_IO_PRV_8BIT_MASK;
-  void *REG_PFS = (void *)(&R_PFS->PORT[bsp_port].PIN[bsp_pinOffset].PmnPFS_BY);
+  transfer_info_t *infop = dtcInfo;
+  static uint32_t half = gptReg->GTPR_b.GTPR / 2;
+	static uint32_t stop = 0x1 << fspTimer.get_channel();
 
   // GTIO pins
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_INCREMENTED;
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_src = REG_PFS;
+  infop->p_src = (void *)&(R_PFS->PORT[bspPort].PIN[bspPinOffset].PmnPFS_BY);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_END;
   infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_1_BYTE;
@@ -196,9 +203,9 @@ HalfDuplexSerialCore::dtc_serial_info_rx_init()
 
   // stop timer
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_dest = (void *)&(gpt_reg->GTSTP);
+  infop->p_dest = (void *)&(gptReg->GTSTP);
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_src = (void *)&(gpt_stopVal);
+  infop->p_src = (void *)&(stop);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_END;
   infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
@@ -209,7 +216,7 @@ HalfDuplexSerialCore::dtc_serial_info_rx_init()
 
   // clear timer
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_dest = (void *)&(gpt_reg->GTCNT);
+  infop->p_dest = (void *)&(gptReg->GTCNT);
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
   infop->p_src = (void *)&(half);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_DISABLED;
@@ -220,17 +227,17 @@ HalfDuplexSerialCore::dtc_serial_info_rx_init()
   infop->num_blocks = 0; // unused.
   infop++;
 
-  assert(infop <= &dtc_info[dtc_info_len]);
+  assert(infop <= &dtcInfo[dtcInfoLen]);
 }
 
 void
 HalfDuplexSerialCore::dtc_serial_info_rx_reset()
 {
-  transfer_info_t *infop = dtc_info;
-  uint16_t bits = serialRxBits;
+  transfer_info_t *infop = dtcInfo;
+  uint16_t bits = rxBits;
 
   // update GTIO state
-  infop->p_dest = &(serialRxLevel[0]);
+  infop->p_dest = &(rxPFSBY[0]);
   infop->length = bits;
   infop++;
 
@@ -242,14 +249,14 @@ HalfDuplexSerialCore::dtc_serial_info_rx_reset()
   infop->length = 1;
   infop++;
 
-  assert(infop <= &dtc_info[dtc_info_len]);
+  assert(infop <= &dtcInfo[dtcInfoLen]);
 }
 
 void
 HalfDuplexSerialCore::tx_abort()
 {
   noInterrupts();
-  serialTxBytes = 0;
+  txBytes = 0;
   interrupts();
   while (tx_busy) {
     yield();
@@ -261,30 +268,30 @@ HalfDuplexSerialCore::tx_serial_restart()
 {
   load_serial_frame(CHANNEL_A);
   load_serial_frame(CHANNEL_B);
-  serialTxPtr++;
-  serialTxBytes--;
+  txPtr++;
+  txBytes--;
 
   dtc_serial_info_tx_reset();
-  R_DTC_Enable(&dtc_ctrl);
+  R_DTC_Enable(&dtcCtrl);
 
   tx_busy = true;
-  fsp_timer.start();
+  fspTimer.start();
 }
 
 bool
 HalfDuplexSerialCore::tx_serial_start(const uint8_t *data, size_t len)
 {
   tx_abort();
- 	R_DTC_Disable(&dtc_ctrl);
+ 	R_DTC_Disable(&dtcCtrl);
   tx_serial = true;
   rx_serial = false;
 
-  serialTxPtr = data;
-  serialTxBytes = len;
+  txPtr = data;
+  txBytes = len;
 
   dtc_serial_info_tx_init();
 
-  gpt_reg->GTSSR_b.SSELCA = 0;
+  gptReg->GTSSR_b.SSELCA = 0;
 
   return tx_serial_restart();
 }
@@ -293,50 +300,50 @@ bool
 HalfDuplexSerialCore::rx_serial_restart(bool initial)
 {
   if (!initial) {
-    #define RxLevelHigh(x) (((serialRxLevel[x]) & 0x2) != 0)
+    #define RxLevelHigh(x) (((rxPFSBY[x]) & 0x2) != 0)
 
     if (RxLevelHigh(0)) {
-      rx_serial_bad_frames++;
+      Counter.rx_bad_frames++;
     }
     else if (!RxLevelHigh(9)) {
-      rx_serial_bad_frames++;
+      Counter.rx_bad_frames++;
     }
     else {
-      rx_serial_good_frames++;
+      Counter.rx_good_frames++;
 
       for (int i = 1; i < 9; i++) {
-        (*serialRxFIFO_IN) >>= 1;
-        (*serialRxFIFO_IN) |= RxLevelHigh(i) ? (0x80): 0;
+        (*rxFIFO_IN) >>= 1;
+        (*rxFIFO_IN) |= RxLevelHigh(i) ? (0x80): 0;
       }
-      if (++serialRxFIFO_IN >= &serialRxFIFO[serialRxFIFOLen]) {
-        serialRxFIFO_IN = serialRxFIFO;
+      if (++rxFIFO_IN >= &rxFIFO[rxFIFOLen]) {
+        rxFIFO_IN = rxFIFO;
       }
-      if (++serialRxBytes > serialRxFIFOLen) {
-        serialRxBytes = serialRxFIFOLen;
-        serialRxFIFO_OUT = serialRxFIFO_IN;
+      if (++rxFIFO_Bytes > rxFIFOLen) {
+        rxFIFO_Bytes = rxFIFOLen;
+        rxFIFO_OUT = rxFIFO_IN;
       }
     }
   }
 
-  gpt_reg->GTCNT_b.GTCNT = gpt_reg->GTPR_b.GTPR / 2;
+  gptReg->GTCNT_b.GTCNT = gptReg->GTPR_b.GTPR / 2;
   dtc_serial_info_rx_reset();
-  R_DTC_Enable(&dtc_ctrl);
+  R_DTC_Enable(&dtcCtrl);
 }
 
 bool
 HalfDuplexSerialCore::rx_serial_start()
 {
   tx_abort();
-	R_DTC_Disable(&dtc_ctrl);
+	R_DTC_Disable(&dtcCtrl);
   tx_serial = false;
   rx_serial = true;
 
-  serialRxFIFO_IN = serialRxFIFO_OUT = serialRxFIFO;
-  serialRxBytes = 0;
+  rxFIFO_IN = rxFIFO_OUT = rxFIFO;
+  rxFIFO_Bytes = 0;
 
   dtc_serial_info_rx_init();
 
-  gpt_reg->GTSSR_b.SSELCA = 1;
+  gptReg->GTSSR_b.SSELCA = 1;
 
   return rx_serial_restart(true);
 }
@@ -344,12 +351,11 @@ HalfDuplexSerialCore::rx_serial_start()
 /*
 Public
 */
-HalfDuplexSerialCore::HalfDuplexSerialCore(FspTimer &timer, dtc_instance_ctrl_t &dtc, transfer_info_t *info) : fsp_timer(timer), dtc_ctrl(dtc), dtc_info(info)
+HalfDuplexSerialCore::HalfDuplexSerialCore(FspTimer &timer, dtc_instance_ctrl_t &dtc, transfer_info_t *info) : fspTimer(timer), dtcCtrl(dtc), dtcInfo(info)
 {
 	int ch = timer.get_channel();
 
-	gpt_reg = (R_GPT0_Type *)((unsigned long)R_GPT0_BASE + (unsigned long)(0x0100 * ch));
-	gpt_stopVal = 0x1 << ch;
+	gptReg = (R_GPT0_Type *)((unsigned long)R_GPT0_BASE + (unsigned long)(0x0100 * ch));
 }
 
 HalfDuplexSerialCore::~HalfDuplexSerialCore()
@@ -364,10 +370,15 @@ HalfDuplexSerialCore::begin(TimerPWMChannel_t ch,  pin_size_t pin, uint32_t bps)
 	this->digitalPin = pin;
 	this->bspPin = digitalPinToBspPin(pin);
   this->bitRate = bps;
+  this->bspPort = bspPin >> IOPORT_PRV_PORT_OFFSET;
+  this->bspPinOffset = bspPin & BSP_IO_PRV_8BIT_MASK;
 
-	pinPeripheral(pin, pin_cfg_input); // XXX: save current state.
+  pinCfgSave = R_PFS->PORT[bspPort].PIN[bspPinOffset].PmnPFS;
+  pinCfgSave &= ~(R_PFS_PORT_PIN_PmnPFS_PIDR_Msk);
+	pinPeripheral(pin, pinCfgInput); // XXX: save current state.
 
-	// Start serial communication @ 1 start bit, 1 stop bit, LSB first, 8 data bits.
+	// Start serial communication
+  //  1 start bit, 1 stop bit, LSB first, 8 data bits.
 	gpt_serial_init();
 	dtc_serial_init();
 
@@ -381,14 +392,14 @@ HalfDuplexSerialCore::end()
 {
 	// stop receiver.
 	elc_link(-1);
-	pinPeripheral(this->digitalPin, pin_cfg_output_low);
+	pinPeripheral(this->digitalPin, pinCfgSave);
 	rx_serial = false;
 	tx_serial = false;
 
 	// ensure GPT and DTC stopped.
-	fsp_timer.stop();
-	fsp_timer.reset();
-	R_DTC_Disable(&dtc_ctrl);
+	fspTimer.stop();
+	fspTimer.reset();
+	R_DTC_Disable(&dtcCtrl);
 }
 
 size_t
@@ -406,7 +417,7 @@ HalfDuplexSerialCore::write(const uint8_t *buffer, size_t len)
 {
   // buffering ???
   tx_serial_start(buffer, len);
-  while (serialTxBytes > 0) {
+  while (txBytes > 0) {
     yield();
   }
   while (tx_busy) {
@@ -425,12 +436,12 @@ void
 HalfDuplexSerialCore::flush()
 {
 	noInterrupts();
-	serialRxFIFO_IN = serialRxFIFO_OUT = serialRxFIFO;
-	serialRxBytes = 0;
-	serialTxBytes = 0;
+	rxFIFO_IN = rxFIFO_OUT = rxFIFO;
+	rxFIFO_Bytes = 0;
+	txBytes = 0;
 	interrupts();
-	serialRxBuff_OUT = serialRxBuff;
-	serialRxBuff_Remain = 0;
+	rxBuffer_OUT = rxBuffer;
+	rxBuffer_Bytes = 0;
 
 	while (tx_busy) {
 		yield();
@@ -445,9 +456,9 @@ HalfDuplexSerialCore::available()
 	int bytes;
 
 	noInterrupts();
-	bytes = serialRxBytes;
+	bytes = rxFIFO_Bytes;
 	interrupts();
-	bytes += serialRxBuff_Remain;
+	bytes += rxBuffer_Bytes;
 
 	return bytes;
 }
@@ -455,47 +466,47 @@ HalfDuplexSerialCore::available()
 int
 HalfDuplexSerialCore::read()
 {
-	if (serialRxBuff_Remain == 0)
+	if (rxBuffer_Bytes == 0)
 	{
-		// flush FIFO.
+		// move all data from FIFO to Buffer.
 		noInterrupts();
-		if (serialRxBytes == 0)
+		if (rxFIFO_Bytes == 0)
 		{
 			interrupts();
 			return -1;
 		}
-		for (int i = 0; i < serialRxBytes; i++)
+		for (int i = 0; i < rxFIFO_Bytes; i++)
 		{
-			serialRxBuff[i] = *serialRxFIFO_OUT++;
-			if (serialRxFIFO_OUT >= &serialRxFIFO[serialRxFIFOLen])
+			rxBuffer[i] = *rxFIFO_OUT++;
+			if (rxFIFO_OUT >= &rxFIFO[rxFIFOLen])
 			{
-				serialRxFIFO_OUT = serialRxFIFO;
+				rxFIFO_OUT = rxFIFO;
 			}
 		}
-		serialRxBuff_Remain = serialRxBytes;
-		serialRxFIFO_IN = serialRxFIFO_OUT = serialRxFIFO;
-		serialRxBytes = 0;
+		rxBuffer_Bytes = rxFIFO_Bytes;
+		rxFIFO_IN = rxFIFO_OUT = rxFIFO;
+		rxFIFO_Bytes = 0;
 		interrupts();
-		serialRxBuff_OUT = serialRxBuff;
+		rxBuffer_OUT = rxBuffer;
 	}
 
-	serialRxBuff_Remain--;
-	return (int)*serialRxBuff_OUT++;
+	rxBuffer_Bytes--;
+	return (int)*rxBuffer_OUT++;
 }
 
 int
 HalfDuplexSerialCore::peek()
 {
-	if (serialRxBuff_Remain > 0) {
-		return (int)*serialRxBuff_OUT;
+	if (rxBuffer_Bytes > 0) {
+		return (int)*rxBuffer_OUT;
 	}
 	uint8_t byte;
 	noInterrupts();
-	if (serialRxBytes <= 0) {
+	if (rxFIFO_Bytes <= 0) {
 		interrupts();
 		return -1;
 	}
-	byte = *serialRxFIFO_OUT;
+	byte = *rxFIFO_OUT;
 	interrupts();
 
 	return (int)byte;

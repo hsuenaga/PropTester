@@ -80,7 +80,7 @@ DShotR4::gpt_dshot_init()
 
   cancel_execution();
 
-  fsp_timer.set_frequency(freqHz); // this function starts timer automaticcaly.
+  fsp_timer.set_frequency(freqHz); // this function starts timer automaticaly.
   fsp_timer.stop();
   fsp_timer.set_duty_cycle(default_duty, CHANNEL_A);
   fsp_timer.set_duty_cycle(default_duty, CHANNEL_B);
@@ -95,6 +95,7 @@ DShotR4::gpt_dshot_init()
 #endif
   }
 
+	gpt_reg->GTIOR = gtioStop.gtior;
   if (gpt_pwmChannelA_enable) {
       pinPeripheral(gpt_pwmPinA, pin_cfg_output_gpt);
   }

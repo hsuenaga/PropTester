@@ -15,7 +15,7 @@ DShotR4::bl_enter()
 
   suspend();
   delay(1000); // wait for signal detection timeout.
-  serialCore.begin(CHANNEL_B, gpt_pwmPinB); // XXX: select
+  serialCore.begin(CHANNEL_B, gpt_pwmPinB, 19200);
 
   return true;
 }
@@ -23,26 +23,14 @@ DShotR4::bl_enter()
 bool
 DShotR4::bl_exit()
 {
-
-  // XXX: send exit commnad(0) to BLHeli.
-  serialCore.end();
+	// XXX: send exit command(0) to BLHeli.
+	serialCore.end();
 
 	// restore waveform transmission mode.
 	dtc_dshot_init();
-	gpt_reg->GTIOR = gtioStop.gtior;
 	gpt_dshot_init();
 
-	// ensure GTIO output mode.
-	if (gpt_pwmChannelA_enable)
-	{
-		pinPeripheral(gpt_pwmPinA, pin_cfg_output_gpt);
-	}
-	if (gpt_pwmChannelB_enable)
-	{
-		pinPeripheral(gpt_pwmPinB, pin_cfg_output_gpt);
-	}
-
-  return true;
+	return true;
 }
 
 bool
@@ -59,10 +47,10 @@ DShotR4::bl_read()
   return serialCore.read();
 }
 
-int
+size_t
 DShotR4::bl_write(uint8_t data)
 {
-  serialCore.write(data);
+  return serialCore.write(data);
 }
 
 void
