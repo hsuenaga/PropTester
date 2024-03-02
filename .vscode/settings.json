@@ -7,6 +7,7 @@
         "ERPM",
         "extcfg",
         "GTCCR",
+        "GTCLR",
         "GTCNT",
         "GTCR",
         "GTCSR",
@@ -22,6 +23,8 @@
         "IELSR",
         "oadflt",
         "obdflt",
+        "PFSBY",
+        "PIDR",
         "SSELCA",
         "UNOWIFIR"
     ]
