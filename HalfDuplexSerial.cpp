@@ -1,19 +1,6 @@
 #include "HalfDuplexSerial.h"
 
 void
-HalfDuplexSerialCore::overflow_interrupt(timer_callback_args_t (*arg))
-{
-  if (tx_serial) {
-    return tx_serial_complete(arg);
-  }
-  else if (rx_serial) {
-    return rx_serial_complete(arg);
-  }
-  Counter.spurious_interrupts++;
-  return;
-}
-
-void
 HalfDuplexSerialCore::tx_serial_complete(timer_callback_args_t (*arg))
 {
   tx_busy = false;
@@ -37,24 +24,6 @@ HalfDuplexSerialCore::rx_serial_complete(timer_callback_args_t (*arg))
 }
 
 void
-HalfDuplexSerialCore::load_serial_frame(TimerPWMChannel_t ch)
-{
-  assert(tx_busy == false);
-  assert(txBits >= 12);
-
-  uint8_t *p = txPFSBY;
-
-  *p++ = pinCfgInput; // idle
-  *p++ = pinCfgOutputLow; // start bit
-  for (int i = 0; i < 8; i++) {
-    bool bit = ((*txPtr >> i) & 0x1) == 0x1;
-    *p++ = (bit ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
-  }
-  *p++ = pinCfgOutputHigh; // stop bit
-  *p++ = pinCfgInput; // idle
-}
-
-void
 HalfDuplexSerialCore::gpt_serial_init()
 {
   float default_duty = 0.0;
@@ -63,24 +32,7 @@ HalfDuplexSerialCore::gpt_serial_init()
   fspTimer.stop();
   fspTimer.set_duty_cycle(default_duty, CHANNEL_A);
   fspTimer.set_duty_cycle(default_duty, CHANNEL_B);
-  fspTimer.reset();
-}
-
-void
-HalfDuplexSerialCore::dtc_serial_init(void)
-{
-  dtc_serial_info_rx_init();
-  dtc_serial_info_rx_reset();
-
-  for (int i = 0; i < txBits; i++) {
-    txPFSBY[i] = (pinCfgInput & 0xFF);
-    txDebug[i] = ((i % 2 == 0) ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
-  }
-
-  for (int i = 0; i < rxBits; i++) {
-    rxPFSBY[i] = 0xff;
-    rxDebug[i] = ((i % 2 == 0) ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
-  }
+  gptReg->GTCNT_b.GTCNT = gptReg->GTPR_b.GTPR / 2;
 }
 
 void
@@ -110,6 +62,23 @@ HalfDuplexSerialCore::elc_link(int port)
   }
   R_ELC_LinkSet(&elcCtrl, ELC_PERIPHERAL_GPT_A, event);
   R_ELC_Enable(&elcCtrl);
+}
+
+void
+HalfDuplexSerialCore::dtc_serial_init(void)
+{
+  dtc_serial_info_rx_init();
+  dtc_serial_info_rx_reset();
+
+  for (int i = 0; i < txBits; i++) {
+    txPFSBY[i] = (pinCfgInput & 0xFF);
+    txDebug[i] = ((i % 2 == 0) ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
+  }
+
+  for (int i = 0; i < rxBits; i++) {
+    rxPFSBY[i] = 0xff;
+    rxDebug[i] = ((i % 2 == 0) ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
+  }
 }
 
 void
@@ -253,6 +222,24 @@ HalfDuplexSerialCore::dtc_serial_info_rx_reset()
 }
 
 void
+HalfDuplexSerialCore::tx_encode()
+{
+  assert(tx_busy == false);
+  assert(txBits >= 12);
+
+  uint8_t *p = txPFSBY;
+
+  *p++ = pinCfgInput; // idle
+  *p++ = pinCfgOutputLow; // start bit
+  for (int i = 0; i < 8; i++) {
+    bool bit = ((*txPtr >> i) & 0x1) == 0x1;
+    *p++ = (bit ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
+  }
+  *p++ = pinCfgOutputHigh; // stop bit
+  *p++ = pinCfgInput; // idle
+}
+
+void
 HalfDuplexSerialCore::tx_abort()
 {
   noInterrupts();
@@ -266,8 +253,7 @@ HalfDuplexSerialCore::tx_abort()
 bool
 HalfDuplexSerialCore::tx_serial_restart()
 {
-  load_serial_frame(CHANNEL_A);
-  load_serial_frame(CHANNEL_B);
+  tx_encode();
   txPtr++;
   txBytes--;
 
@@ -296,50 +282,68 @@ HalfDuplexSerialCore::tx_serial_start(const uint8_t *data, size_t len)
   return tx_serial_restart();
 }
 
+int
+HalfDuplexSerialCore::rx_decode()
+{
+  uint8_t v = 0;
+
+  // start bit must be low
+  if ((rxPFSBY[0] & R_PFS_PORT_PIN_PmnPFS_PIDR_Msk)) {
+    return -1;
+  }
+
+  // stop bit must be high
+  if (!(rxPFSBY[9] & R_PFS_PORT_PIN_PmnPFS_PIDR_Msk)) {
+    return -1;
+  }
+
+  for (int i = 1; i < 9; i++) {
+    v >>= 1;
+    v |= (rxPFSBY[i] & R_PFS_PORT_PIN_PmnPFS_PIDR_Msk) ? 0x80 : 0;
+  }
+  return (int)v;
+}
+
 bool
 HalfDuplexSerialCore::rx_serial_restart(bool initial)
 {
   if (!initial) {
-    #define RxLevelHigh(x) (((rxPFSBY[x]) & 0x2) != 0)
+    int v = rx_decode();
 
-    if (RxLevelHigh(0)) {
+    if (v < 0) {
       Counter.rx_bad_frames++;
     }
-    else if (!RxLevelHigh(9)) {
-      Counter.rx_bad_frames++;
+    else if (rxFIFO_Bytes >= rxFIFOLen) {
+      Counter.rx_overflow++;
     }
     else {
       Counter.rx_good_frames++;
+      *rxFIFO_IN++ = (uint8_t)v;
+      rxFIFO_Bytes++;
 
-      for (int i = 1; i < 9; i++) {
-        (*rxFIFO_IN) >>= 1;
-        (*rxFIFO_IN) |= RxLevelHigh(i) ? (0x80): 0;
-      }
-      if (++rxFIFO_IN >= &rxFIFO[rxFIFOLen]) {
+      if (rxFIFO_IN >= &rxFIFO[rxFIFOLen]) {
         rxFIFO_IN = rxFIFO;
-      }
-      if (++rxFIFO_Bytes > rxFIFOLen) {
-        rxFIFO_Bytes = rxFIFOLen;
-        rxFIFO_OUT = rxFIFO_IN;
       }
     }
   }
 
-  gptReg->GTCNT_b.GTCNT = gptReg->GTPR_b.GTPR / 2;
   dtc_serial_info_rx_reset();
   R_DTC_Enable(&dtcCtrl);
+
+  return true;
 }
 
 bool
 HalfDuplexSerialCore::rx_serial_start()
 {
+  if (rx_serial) {
+    return false;
+  }
+
   tx_abort();
 	R_DTC_Disable(&dtcCtrl);
   tx_serial = false;
   rx_serial = true;
-
-  rxFIFO_IN = rxFIFO_OUT = rxFIFO;
-  rxFIFO_Bytes = 0;
 
   dtc_serial_info_rx_init();
 
@@ -364,6 +368,19 @@ HalfDuplexSerialCore::~HalfDuplexSerialCore()
 }
 
 void
+HalfDuplexSerialCore::overflow_interrupt(timer_callback_args_t (*arg))
+{
+  if (tx_serial) {
+    return tx_serial_complete(arg);
+  }
+  else if (rx_serial) {
+    return rx_serial_complete(arg);
+  }
+  Counter.spurious_interrupts++;
+  return;
+}
+
+void
 HalfDuplexSerialCore::begin(TimerPWMChannel_t ch,  pin_size_t pin, uint32_t bps)
 {
 	this->channel = ch;
@@ -383,6 +400,9 @@ HalfDuplexSerialCore::begin(TimerPWMChannel_t ch,  pin_size_t pin, uint32_t bps)
 	dtc_serial_init();
 
 	elc_link((bspPin >> IOPORT_PRV_PORT_OFFSET));
+
+  rxFIFO_IN = rxFIFO_OUT = rxFIFO;
+  rxFIFO_Bytes = 0;
 
 	rx_serial_start();
 }
@@ -440,8 +460,6 @@ HalfDuplexSerialCore::flush()
 	rxFIFO_Bytes = 0;
 	txBytes = 0;
 	interrupts();
-	rxBuffer_OUT = rxBuffer;
-	rxBuffer_Bytes = 0;
 
 	while (tx_busy) {
 		yield();
@@ -458,49 +476,36 @@ HalfDuplexSerialCore::available()
 	noInterrupts();
 	bytes = rxFIFO_Bytes;
 	interrupts();
-	bytes += rxBuffer_Bytes;
 
 	return bytes;
 }
 
-int
-HalfDuplexSerialCore::read()
+int HalfDuplexSerialCore::read()
 {
-	if (rxBuffer_Bytes == 0)
-	{
-		// move all data from FIFO to Buffer.
-		noInterrupts();
-		if (rxFIFO_Bytes == 0)
-		{
-			interrupts();
-			return -1;
-		}
-		for (int i = 0; i < rxFIFO_Bytes; i++)
-		{
-			rxBuffer[i] = *rxFIFO_OUT++;
-			if (rxFIFO_OUT >= &rxFIFO[rxFIFOLen])
-			{
-				rxFIFO_OUT = rxFIFO;
-			}
-		}
-		rxBuffer_Bytes = rxFIFO_Bytes;
-		rxFIFO_IN = rxFIFO_OUT = rxFIFO;
-		rxFIFO_Bytes = 0;
-		interrupts();
-		rxBuffer_OUT = rxBuffer;
-	}
+  uint8_t byte;
 
-	rxBuffer_Bytes--;
-	return (int)*rxBuffer_OUT++;
+  noInterrupts();
+  if (rxFIFO_Bytes <= 0)
+  {
+    interrupts();
+    return -1;
+  }
+  byte = *rxFIFO_OUT++;
+  rxFIFO_Bytes--;
+  if (rxFIFO_OUT >= &rxFIFO[rxFIFOLen])
+  {
+    rxFIFO_OUT = rxFIFO;
+  }
+  interrupts();
+
+  return (int)byte;
 }
 
 int
 HalfDuplexSerialCore::peek()
 {
-	if (rxBuffer_Bytes > 0) {
-		return (int)*rxBuffer_OUT;
-	}
 	uint8_t byte;
+
 	noInterrupts();
 	if (rxFIFO_Bytes <= 0) {
 		interrupts();

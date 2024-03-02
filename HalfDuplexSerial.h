@@ -51,9 +51,6 @@ private:
 	uint8_t *rxFIFO_IN;
 	uint8_t *rxFIFO_OUT;
 	int rxFIFO_Bytes;
-	uint8_t rxBuffer[rxFIFOLen];
-	uint8_t *rxBuffer_OUT;
-	int rxBuffer_Bytes;
 
 	// external instances
 	FspTimer &fspTimer;
@@ -63,23 +60,27 @@ private:
 
 	// ELC
 	elc_instance_ctrl_t elcCtrl;
-	void elc_link(int port);
 
 	// interrupt handlers
 	void tx_serial_complete(timer_callback_args_t(*arg));
 	void rx_serial_complete(timer_callback_args_t(*arg));
 
 	void gpt_serial_init();
+
+	void elc_link(int port);
+
+	void dtc_serial_init(void);
 	void dtc_serial_info_tx_init(void);
 	void dtc_serial_info_tx_reset(void);
 	void dtc_serial_info_rx_init(void);
 	void dtc_serial_info_rx_reset(void);
-	void dtc_serial_init(void);
 
-	void load_serial_frame(TimerPWMChannel_t ch = CHANNEL_B);
+	void tx_encode(void);
 	void tx_abort(void);
 	bool tx_serial_restart(void);
 	bool tx_serial_start(const uint8_t *data, size_t len);
+
+	int rx_decode(void);
 	bool rx_serial_restart(bool initial = false);
 	bool rx_serial_start(void);
 
@@ -87,6 +88,7 @@ public:
 	struct HalfDuplexSerialCoreCounter_t {		
 		uint32_t tx_success;
 		uint32_t rx_detect;
+		uint32_t rx_overflow;
 		uint32_t rx_good_frames;
 		uint32_t rx_bad_frames;
 		uint32_t spurious_interrupts;
