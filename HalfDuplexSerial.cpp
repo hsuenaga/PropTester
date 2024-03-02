@@ -435,37 +435,28 @@ HalfDuplexSerialCore::write(uint8_t c)
 size_t
 HalfDuplexSerialCore::write(const uint8_t *buffer, size_t len)
 {
-  // buffering ???
+  // do we want buffering behaviors???
   tx_serial_start(buffer, len);
-  while (txBytes > 0) {
-    yield();
-  }
-  while (tx_busy) {
-    yield();
-  }
+  flush();
+
   return len;
 }
 
 int
 HalfDuplexSerialCore::availableForWrite()
 {
-	return 0;
+	return 0; // no buffering is supported at this time.
 }
 
 void
 HalfDuplexSerialCore::flush()
 {
-	noInterrupts();
-	rxFIFO_IN = rxFIFO_OUT = rxFIFO;
-	rxFIFO_Bytes = 0;
-	txBytes = 0;
-	interrupts();
-
-	while (tx_busy) {
-		yield();
-	}
-
-	return;
+  while (txBytes > 0) {
+    yield();
+  }
+  while (tx_busy) {
+    yield();
+  }
 }
 
 int
