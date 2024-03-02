@@ -37,12 +37,14 @@ private:
 	    IOPORT_CFG_DRIVE_MID |
 	    IOPORT_CFG_EVENT_FALLING_EDGE;
 
+	bool tx_busy = false;
 	const static int txBits = 12; // idle(1) + start(1) + data(8) + stop(1) + idle(1)
 	uint8_t txPFSBY[txBits];
 	uint8_t txDebug[txBits];
 	const uint8_t *txPtr;
 	int txBytes;
 
+	bool rx_ready = false;
 	const static int rxBits = 10; // start(1) + data(8) + stop(1)
 	uint8_t rxPFSBY[rxBits];
 	uint8_t rxDebug[rxBits];
@@ -93,8 +95,6 @@ public:
 		uint32_t rx_bad_frames;
 		uint32_t spurious_interrupts;
 	} Counter;
-	bool tx_busy;
-	bool rx_ready = false;
 
 	HalfDuplexSerialCore(FspTimer &timer, dtc_instance_ctrl_t &dtc, transfer_info_t *info);
 	~HalfDuplexSerialCore();
