@@ -23,7 +23,7 @@ struct shell_command_table bootloader_command[] = {
   {"buffer", exec_bl_buffer},
   {"open", exec_bl_open},
   {"write", exec_bl_write},
-  {"exit", exec_bl_exit},  
+  {"exit", exec_bl_exit},
   {NULL, NULL}
 };
 
@@ -73,7 +73,7 @@ exec_stat(char *arg)
   message("rx_serial_detect: %d\n", DShot.rx_serial_detect);
   message("rx_serial_good_frames: %d\n", DShot.rx_serial_good_frames);
   message("rx_serial_bad_frames: %d\n", DShot.rx_serial_bad_frames);
-  message("sprious interrupts: %d\n", DShot.suprious_intr);
+  message("spurious interrupts: %d\n", DShot.spurious_intr);
   message("--MSP status--\n");
   message("received: %d, error: %d\n", Msp.received, Msp.error);
   message("--Variables--\n");
@@ -89,15 +89,8 @@ exec_bl_buffer(char *arg)
   uint8_t buf[10];
   size_t len = sizeof(buf);
 
-  message("CHANNEL_A:");
-  DShot.get_bl_rx_raw_buff(CHANNEL_A, buf, &len);
-  for (int i = 0; i < len; i++) {
-    message(" %02x", buf[i]);
-  }
-  message("\n");
-
-  message("CHANNEL_B:");
-  DShot.get_bl_rx_raw_buff(CHANNEL_B, buf, &len);
+  message("CHANNEL  :");
+  DShot.get_bl_rx_raw_buff(buf, &len);
   for (int i = 0; i < len; i++) {
     message(" %02x", buf[i]);
   }
@@ -122,7 +115,7 @@ exec_bl_open(char *arg)
 
   DShot.bl_open();
   message("hello sequence sent to BLHeli...");
-  while (DShot.bl_peek() < sizeof(bootInfo)) {
+  while (DShot.bl_available() < sizeof(bootInfo)) {
     yield();
     if ((millis() - start) > 1000) {
       message("timeout.\n");
@@ -136,7 +129,6 @@ exec_bl_open(char *arg)
     bootInfo[i] = (uint8_t)DShot.bl_read();
     message(" %02x", bootInfo[i]);
   }
-    DShot.bl_flush();
   message("\n");
   // BOOT_MSG
   message("BootMessage(Revision): %c%c%c%c\n", bootInfo[0], bootInfo[1], bootInfo[2], bootInfo[3]);
@@ -150,7 +142,6 @@ exec_bl_open(char *arg)
   message("Boot Pages: %u\n", bootInfo[7]);
   // COMMAND_STATUS
   message("Command STATUS: 0x%0x\n", bootInfo[8]);
-
 
   return true;
 }
@@ -198,7 +189,7 @@ exec_arm(char *arg)
 bool
 exec_reset(char *arg)
 {
-  message("Initalizing ESC communication...\n");
+  message("Initializing ESC communication...\n");
   DShot.reset();
   message("ESC communication initialized.\n");
 

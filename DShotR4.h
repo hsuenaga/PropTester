@@ -1,5 +1,5 @@
-#ifndef __DSHOTR4_H__
-#define __DSHOTR4_H__
+#pragma once
+
 #include <Arduino.h>
 #include <FspTimer.h>
 
@@ -8,6 +8,8 @@
 #include "r_elc.h"
 #include "r_elc_api.h"
 #include "elc_defines.h"
+
+#include "HalfDuplexSerial.h"
 
 #undef DEBUG_CHANNEL_A
 
@@ -53,7 +55,7 @@ class DShotR4 {
       DSHOT_CMD_SIGNAL_LINE_CONTINUOUS_ERPM_TELEMETRY = 33,
       DSHOT_CMD_MAX = 47,
     };
-    uint32_t suprious_intr;
+    uint32_t spurious_intr;
     uint32_t tx_success;
     uint32_t tx_error;
     uint32_t tx_serial_success;
@@ -197,23 +199,6 @@ class DShotR4 {
     uint32_t waveform[2][dshotBits];
     uint32_t gtioState[dshotBits];
 
-    const static int serialTxBits = 12; // idle(1) + start(1) + data(8) + stop(1) + idle(1)
-    uint8_t serialTxLevel[2][serialTxBits];
-    uint8_t serialTxDebug[serialTxBits];
-    const uint8_t *serialTxPtr;
-    int serialTxBytes;
-
-    const static int serialRxBits = 10; // start(1) + data(8) + stop(1)
-    uint8_t serialRxLevel[2][serialRxBits];
-    uint8_t serialRxDebug[serialRxBits];
-    const static int serialRxFIFOLen = 16;
-    uint8_t serialRxFIFO[serialRxFIFOLen];
-    uint8_t *serialRxFIFO_IN;
-    uint8_t *serialRxFIFO_OUT;
-    int serialRxBytes;
-    uint8_t serialRxBuff[serialRxFIFOLen];
-    uint8_t *serialRxBuff_OUT;
-    int serialRxBuff_Remain;
 
     // GPT
     bool tx_busy = false;
@@ -250,40 +235,25 @@ class DShotR4 {
       return false;
     }
 
-    // ELC
-    elc_instance_ctrl_t elc_ctrl;
+    // Serial Communication for BLHeli
+    HalfDuplexSerialCore serialCore;
 
     static void gpt_overflow_intr(timer_callback_args_t (*arg));
     void tx_dshot_complete(timer_callback_args_t (*arg));
-    void tx_serial_complete(timer_callback_args_t (*arg));
-    void rx_serial_complete(timer_callback_args_t (*arg));
 
     void update_timer_counts(void);
     void gpt_gtioState_init(void);
     void gpt_init();
     void gpt_dshot_init();
-    void gpt_serial_init();
 
     void dtc_dshot_info_init(void);
     void dtc_dshot_info_reset(void);
-    void dtc_serial_info_tx_init(void);
-    void dtc_serial_info_tx_reset(void);
-    void dtc_serial_info_rx_init(void);
-    void dtc_serial_info_rx_reset(void);
     void dtc_init(void);
     void dtc_dshot_init(void);
-    void dtc_serial_init(void);
-
-    void elc_link(int port);
 
     void load_dshot_frame(void);
-    void load_serial_frame(TimerPWMChannel_t ch = CHANNEL_B);
     bool tx_restart(void);
     bool tx_start(void);
-    bool tx_serial_restart(void);
-    bool tx_serial_start(const uint8_t *data, size_t len);
-    bool rx_serial_restart(bool initial = false);
-    bool rx_serial_start(void);
 
   public:
     DShotR4(float tr_hz = 1.05, float tr_t1h = 1.05, float tr_t0h = 0.95);
@@ -297,7 +267,7 @@ class DShotR4 {
     bool set_tolerance_t0h(float tr_t0h);
 
     bool set_rawValue(TimerPWMChannel_t channel, uint16_t value, bool telemetry = false);
-    bool set_throttle(TimerPWMChannel_t channel, uint16_t throttole, bool telemetry = false);
+    bool set_throttle(TimerPWMChannel_t channel, uint16_t throttle, bool telemetry = false);
     bool set_command(TimerPWMChannel_t channel, enum DShotCommand cmd);
     bool set_testPattern(void);
 
@@ -308,11 +278,11 @@ class DShotR4 {
 
     bool bl_enter(void);
     bool bl_exit(void);
-    bool bl_open();
-    int bl_read();
-    int bl_peek();
-    int bl_flush();
+    bool bl_open(void);
+    int bl_read(void);
     int bl_write(uint8_t data);
+    void bl_flush(void);
+    int bl_available(void);
 
     uint32_t get_ifg_us() {
       return dshot_ifg_us;
@@ -346,25 +316,11 @@ class DShotR4 {
       return gpt_pwmPinB;
     };
 
-    bool get_bl_rx_raw_buff(int ch, uint8_t *dst, size_t *len) {
-      if (*len < serialRxBits) {
-        *len = serialRxBits;
-        return false;
-      }
-      memcpy(dst, serialRxLevel[ch], serialRxBits);
-      *len = serialRxBits;
-      return true;
+    bool get_bl_rx_raw_buff(uint8_t *dst, size_t *len) {
+      return serialCore.get_rx_raw_buff(dst, len);
     };
 
     bool get_bl_rx_debug_buff(uint8_t *dst, size_t *len) {
-      if (*len < serialRxBits) {
-        *len = serialRxBits;
-        return false;
-      }
-      memcpy(dst, serialRxDebug, serialRxBits);
-      *len = serialRxBits;
-      return true;
+      return serialCore.get_rx_debug_buff(dst, len);
     };
 };
-
-#endif /* __DSHOTR4_H__ */

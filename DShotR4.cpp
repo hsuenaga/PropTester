@@ -1,22 +1,20 @@
 #include "DShotR4.h"
 
-static const elc_cfg_t elc_cfg = { ELC_EVENT_NONE };
-
 void
 DShotR4::gpt_overflow_intr(timer_callback_args_t (*arg))
 {
   DShotR4 *instance = (DShotR4 *)arg->p_context;
 
   if (instance->tx_busy == false && instance->rx_serial == false) {
-    instance->suprious_intr++;
+    instance->spurious_intr++;
     return;
   }
 
   if (instance->tx_serial) {
-    return instance->tx_serial_complete(arg);
+    return instance->serialCore.tx_serial_complete(arg);
   }
   else if (instance->rx_serial) {
-    return instance->rx_serial_complete(arg);
+    return instance->serialCore.rx_serial_complete(arg);
   }
   else {
     return instance->tx_dshot_complete(arg);
@@ -98,7 +96,7 @@ DShotR4::gpt_init(void)
   // reserve GPT via FspTimer class to avoid conflict with Arduino-Core functions.
   fsp_timer.begin(TIMER_MODE_PWM, GPT_TIMER, gpt_Channel, default_freqHz, default_duty, gpt_overflow_intr, this);
   fsp_timer.setup_overflow_irq();
-  fsp_timer.set_source_start(GPT_SOURCE_GPT_A); // XXX: rectlicted event source...
+  fsp_timer.set_source_start(GPT_SOURCE_GPT_A); // XXX: restricted event source...
   fsp_timer.add_pwm_extended_cfg();
   ((gpt_extended_cfg_t *)fsp_timer.get_cfg()->p_extend)->gtior_setting.gtior = gtioStop.gtior;
   fsp_timer.open();
@@ -130,42 +128,16 @@ DShotR4::dtc_init(void)
   assert(FSP_SUCCESS == err);
 }
 
-void
-DShotR4::elc_link(int port)
-{
-  elc_event_t event = ELC_EVENT_NONE;
-
-  R_ELC_Open(&elc_ctrl, &elc_cfg);
-  R_ELC_Disable(&elc_ctrl);
-  switch (port) {
-    case 1:
-      event = ELC_EVENT_IOPORT_EVENT_1;
-      break;
-    case 2:
-      event = ELC_EVENT_IOPORT_EVENT_2;
-      break;
-    case 3:
-      event = ELC_EVENT_IOPORT_EVENT_3;
-      break;
-    case 4:
-      event = ELC_EVENT_IOPORT_EVENT_4;
-      break;
-    default:
-      event = ELC_EVENT_NONE;
-      break;
-  }
-  R_ELC_LinkSet(&elc_ctrl, ELC_PERIPHERAL_GPT_A, event);
-  R_ELC_Enable(&elc_ctrl);
-}
 
 /*
  * public
  */
-DShotR4::DShotR4(float tr_period, float tr_t1h, float tr_t0h): fsp_timer(), serialRxFIFO()
+DShotR4::DShotR4(float tr_period, float tr_t1h, float tr_t0h): fsp_timer(), serialCore(this->fsp_timer, this->dtc_ctrl, &this->dtc_info[0])
 {
   this->tolerance_hz = tr_period;
   this->tolerance_t1h = tr_t1h;
   this->tolerance_t0h = tr_t0h;
+
 }
 
 DShotR4::~DShotR4()
@@ -192,7 +164,6 @@ DShotR4::begin(enum DShotType type, bool biDir, uint8_t channel, bool useChannel
 
   gpt_init();
   dtc_init();
-  elc_link(-1);
 
   // default protocol is DShot.
   gpt_dshot_init();
