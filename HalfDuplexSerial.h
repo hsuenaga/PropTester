@@ -94,8 +94,7 @@ public:
 		uint32_t spurious_interrupts;
 	} Counter;
 	bool tx_busy;
-	bool tx_serial = false;
-	bool rx_serial = false;
+	bool rx_ready = false;
 
 	HalfDuplexSerialCore(FspTimer &timer, dtc_instance_ctrl_t &dtc, transfer_info_t *info);
 	~HalfDuplexSerialCore();

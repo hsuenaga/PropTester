@@ -253,6 +253,8 @@ HalfDuplexSerialCore::tx_abort()
 bool
 HalfDuplexSerialCore::tx_serial_restart()
 {
+  tx_busy = true;
+
   tx_encode();
   txPtr++;
   txBytes--;
@@ -260,7 +262,6 @@ HalfDuplexSerialCore::tx_serial_restart()
   dtc_serial_info_tx_reset();
   R_DTC_Enable(&dtcCtrl);
 
-  tx_busy = true;
   fspTimer.start();
 }
 
@@ -269,8 +270,7 @@ HalfDuplexSerialCore::tx_serial_start(const uint8_t *data, size_t len)
 {
   tx_abort();
  	R_DTC_Disable(&dtcCtrl);
-  tx_serial = true;
-  rx_serial = false;
+  rx_ready = false;
 
   txPtr = data;
   txBytes = len;
@@ -336,14 +336,13 @@ HalfDuplexSerialCore::rx_serial_restart(bool initial)
 bool
 HalfDuplexSerialCore::rx_serial_start()
 {
-  if (rx_serial) {
+  if (rx_ready) {
     return false;
   }
 
   tx_abort();
 	R_DTC_Disable(&dtcCtrl);
-  tx_serial = false;
-  rx_serial = true;
+  rx_ready = true;
 
   dtc_serial_info_rx_init();
 
@@ -370,12 +369,14 @@ HalfDuplexSerialCore::~HalfDuplexSerialCore()
 void
 HalfDuplexSerialCore::overflow_interrupt(timer_callback_args_t (*arg))
 {
-  if (tx_serial) {
+  if (tx_busy) {
     return tx_serial_complete(arg);
   }
-  else if (rx_serial) {
+
+  if (rx_ready) {
     return rx_serial_complete(arg);
   }
+
   Counter.spurious_interrupts++;
   return;
 }
@@ -413,22 +414,22 @@ HalfDuplexSerialCore::end()
 	// stop receiver.
 	elc_link(-1);
 	pinPeripheral(this->digitalPin, pinCfgSave);
-	rx_serial = false;
-	tx_serial = false;
 
 	// ensure GPT and DTC stopped.
 	fspTimer.stop();
 	fspTimer.reset();
 	R_DTC_Disable(&dtcCtrl);
+
+  tx_busy = false;
+	rx_ready = false;
 }
 
 size_t
 HalfDuplexSerialCore::write(uint8_t c)
 {
   tx_serial_start(&c, sizeof(c));
-  while (tx_busy) {
-    yield();
-  }
+  flush();
+
   return sizeof(c);
 }
 
