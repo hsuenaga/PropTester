@@ -1,13 +1,28 @@
 {
     "cSpell.words": [
         "blheli",
+        "bootloader",
+        "ELCR",
+        "ELSR",
+        "ERPM",
         "extcfg",
+        "GTCCR",
         "GTCNT",
+        "GTCR",
+        "GTCSR",
         "GTIO",
+        "gtioa",
+        "gtiob",
         "GTIOR",
         "GTPR",
+        "GTPSR",
         "GTSSR",
         "GTSTP",
-        "SSELCA"
+        "IELS",
+        "IELSR",
+        "oadflt",
+        "obdflt",
+        "SSELCA",
+        "UNOWIFIR"
     ]
 }
