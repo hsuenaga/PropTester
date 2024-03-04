@@ -13,11 +13,11 @@ DShotR4::bl_enter()
 		pinPeripheral(gpt_pwmPinB, pin_cfg_output_high);
 	}
 
-  suspend();
-  delay(1000); // wait for signal detection timeout.
-  serialCore.begin(CHANNEL_B, gpt_pwmPinB, 19200);
+	suspend();
+	delay(1000); // wait for signal detection timeout.
+	serialCore.begin(CHANNEL_B, gpt_pwmPinB, 19200);
 
-  return true;
+	return true;
 }
 
 bool

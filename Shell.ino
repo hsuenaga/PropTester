@@ -66,16 +66,23 @@ exec_reg(char *arg)
 bool
 exec_stat(char *arg)
 {
-  message("--Interrupts statistics--\n");
+  message("--DShot interrupts statistics--\n");
   message("tx_success: %d\n", DShot.tx_success);
   message("tx_error: %d\n", DShot.tx_error);
-  message("tx_serial_success: %d\n", DShot.tx_serial_success);
-  message("rx_serial_detect: %d\n", DShot.rx_serial_detect);
-  message("rx_serial_good_frames: %d\n", DShot.rx_serial_good_frames);
-  message("rx_serial_bad_frames: %d\n", DShot.rx_serial_bad_frames);
-  message("spurious interrupts: %d\n", DShot.spurious_intr);
+  message("--SerialCore interrupts statistics--\n");
+  message("tx_success: %d\n", DShot.serialCore.Counter.tx_success);
+  message("rx_detect: %d\n", DShot.serialCore.Counter.rx_detect);
+  message("rx_overflow: %d\n", DShot.serialCore.Counter.rx_overflow);
+  message("rx_good_frames: %d\n", DShot.serialCore.Counter.rx_good_frames);
+  message("rx_bad_frames: %d\n", DShot.serialCore.Counter.rx_bad_frames);
+  message("spurious interrupts: %d\n", DShot.serialCore.Counter.spurious_interrupts);
+  message("--Spurious interrupts--\n");
+  message("overflow inter: %d\n", DShot.spurious_intr);
   message("--MSP status--\n");
   message("received: %d, error: %d\n", Msp.received, Msp.error);
+  message("--Serial Status--\n");
+  message("tx_busy: %s\n", DShot.serialCore.is_tx_busy() ? "true" : "false");
+  message("rx_ready: %s\n", DShot.serialCore.is_rx_ready() ? "true" : "false");
   message("--Variables--\n");
   message("auto_restart: %s\n", DShot.get_auto_restart() ? "true" : "false");
   message("auto_restart_count: %d\n", DShot.get_auto_restart_count());

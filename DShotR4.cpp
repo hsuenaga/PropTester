@@ -5,17 +5,14 @@ DShotR4::gpt_overflow_intr(timer_callback_args_t (*arg))
 {
   DShotR4 *instance = (DShotR4 *)arg->p_context;
 
-  if (instance->tx_busy == false && instance->rx_serial == false) {
-    instance->spurious_intr++;
-    return;
-  }
-
-  if (instance->tx_serial || instance->rx_serial) {
+  if (instance->serialCore.is_tx_busy() || instance->serialCore.is_rx_ready()) {
     return instance->serialCore.overflow_interrupt(arg);
   }
   else {
     return instance->tx_dshot_complete(arg);
   }
+
+  instance->spurious_intr++;
 }
 
 void
@@ -129,7 +126,7 @@ DShotR4::dtc_init(void)
 /*
  * public
  */
-DShotR4::DShotR4(float tr_period, float tr_t1h, float tr_t0h): fsp_timer(), serialCore(this->fsp_timer, this->dtc_ctrl, &this->dtc_info[0])
+DShotR4::DShotR4(float tr_period, float tr_t1h, float tr_t0h): fsp_timer(), serialCore(this->fsp_timer, this->dtc_ctrl, &this->dtc_info[0], this->dtc_info_len)
 {
   this->tolerance_hz = tr_period;
   this->tolerance_t1h = tr_t1h;

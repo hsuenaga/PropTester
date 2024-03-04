@@ -235,8 +235,6 @@ class DShotR4 {
       return false;
     }
 
-    // Serial Communication for BLHeli
-    HalfDuplexSerialCore serialCore;
 
     static void gpt_overflow_intr(timer_callback_args_t (*arg));
     void tx_dshot_complete(timer_callback_args_t (*arg));
@@ -256,6 +254,9 @@ class DShotR4 {
     bool tx_start(void);
 
   public:
+    // Serial Communication for BLHeli XXX: should be private
+    HalfDuplexSerialCore serialCore;
+
     DShotR4(float tr_hz = 1.05, float tr_t1h = 1.05, float tr_t0h = 0.95);
     ~DShotR4();
 

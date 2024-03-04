@@ -26,10 +26,10 @@ private:
 	    IOPORT_CFG_PORT_OUTPUT_HIGH |
 	    IOPORT_CFG_DRIVE_MID;
 
-    static const uint32_t pinCfgOutputLow =
-      IOPORT_CFG_PORT_DIRECTION_OUTPUT |
-      IOPORT_CFG_PORT_OUTPUT_LOW |
-      IOPORT_CFG_DRIVE_MID;
+	static const uint32_t pinCfgOutputLow =
+	    IOPORT_CFG_PORT_DIRECTION_OUTPUT |
+	    IOPORT_CFG_PORT_OUTPUT_LOW |
+	    IOPORT_CFG_DRIVE_MID;
 
 	static const uint32_t pinCfgInput =
 	    IOPORT_CFG_PORT_DIRECTION_INPUT |
@@ -67,15 +67,15 @@ private:
 	void tx_serial_complete(timer_callback_args_t(*arg));
 	void rx_serial_complete(timer_callback_args_t(*arg));
 
-	void gpt_serial_init();
+	void gpt_init();
 
 	void elc_link(int port);
 
-	void dtc_serial_init(void);
-	void dtc_serial_info_tx_init(void);
-	void dtc_serial_info_tx_reset(void);
-	void dtc_serial_info_rx_init(void);
-	void dtc_serial_info_rx_reset(void);
+	void dtc_init(void);
+	void dtc_info_tx_init(void);
+	void dtc_info_tx_reset(void);
+	void dtc_info_rx_init(void);
+	void dtc_info_rx_reset(void);
 
 	void tx_encode(void);
 	void tx_abort(void);
@@ -87,7 +87,8 @@ private:
 	bool rx_serial_start(void);
 
 public:
-	struct HalfDuplexSerialCoreCounter_t {		
+	struct HalfDuplexSerialCoreCounter_t
+	{
 		uint32_t tx_success;
 		uint32_t rx_detect;
 		uint32_t rx_overflow;
@@ -96,7 +97,7 @@ public:
 		uint32_t spurious_interrupts;
 	} Counter;
 
-	HalfDuplexSerialCore(FspTimer &timer, dtc_instance_ctrl_t &dtc, transfer_info_t *info);
+	HalfDuplexSerialCore(FspTimer &timer, dtc_instance_ctrl_t &dtc, transfer_info_t *info, size_t infoLen);
 	~HalfDuplexSerialCore();
 
 	void overflow_interrupt(timer_callback_args_t(*arg));
@@ -113,6 +114,15 @@ public:
 	int read(void) override;
 	int peek(void) override;
 
+	bool is_tx_busy(void)
+	{
+		return tx_busy;
+	}
+
+	bool is_rx_ready(void)
+	{
+		return rx_ready;
+	}
 
 	bool get_rx_raw_buff(uint8_t *dst, size_t *len)
 	{
