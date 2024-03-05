@@ -4,12 +4,7 @@ void HalfDuplexSerialCore::tx_serial_complete(timer_callback_args_t(*arg))
 {
   tx_busy = false;
   Counter.tx_success++;
-  if (txBytes > 0)
-  {
-    tx_serial_restart();
-    return;
-  }
-  rx_serial_start();
+  tx_serial_restart(false);
 
   return;
 }
@@ -83,8 +78,9 @@ void HalfDuplexSerialCore::dtc_init(void)
 void HalfDuplexSerialCore::dtc_info_tx_init()
 {
   transfer_info_t *infop = dtcInfo;
-  static uint32_t half = gptReg->GTPR_b.GTPR / 2;
-  static uint32_t stop = 0x1 << fspTimer.get_channel();
+  static uint32_t stop;
+
+  stop = 0x1 << fspTimer.get_channel();
 
   // GTIO pins (CHANNEL A)
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
@@ -111,11 +107,11 @@ void HalfDuplexSerialCore::dtc_info_tx_init()
   infop->num_blocks = 0; // unused.
   infop++;
 
-  // clear timer
+  // reload timer
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
   infop->p_dest = (void *)&(gptReg->GTCNT);
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_src = (void *)&(half);
+  infop->p_src = (void *)&(txIFG);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_DISABLED;
   infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
@@ -133,7 +129,7 @@ void HalfDuplexSerialCore::dtc_info_tx_reset()
   uint16_t bits = txBits;
 
   // update GTIO state
-  infop->p_src = &(txPFSBY[0]);
+  infop->p_src = &(txFIFO_OUT[0]);
   infop->length = bits;
   infop++;
 
@@ -151,8 +147,11 @@ void HalfDuplexSerialCore::dtc_info_tx_reset()
 void HalfDuplexSerialCore::dtc_info_rx_init()
 {
   transfer_info_t *infop = dtcInfo;
-  static uint32_t half = gptReg->GTPR_b.GTPR / 2;
-  static uint32_t stop = 0x1 << fspTimer.get_channel();
+  static uint32_t stop;
+  static uint32_t half;
+
+  stop = 0x1 << fspTimer.get_channel();
+  half = gptReg->GTPR_b.GTPR / 2;
 
   // GTIO pins
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_INCREMENTED;
@@ -216,63 +215,76 @@ void HalfDuplexSerialCore::dtc_info_rx_reset()
   assert(infop <= &dtcInfo[dtcInfoLen]);
 }
 
-void HalfDuplexSerialCore::tx_encode()
+void HalfDuplexSerialCore::tx_encode(uint8_t byte, txPFSBY_t *pfsby)
 {
-  assert(txBits >= 12);
+  uint8_t *p = &(*pfsby)[0];
 
-  uint8_t *p = txPFSBY;
-
-  *p++ = pinCfgInput;     // idle
-  *p++ = pinCfgOutputLow; // start bit
+  *p++ = pinCfgOutputHigh & 0xFF; // idle
+  *p++ = pinCfgOutputLow & 0xFF; // start bit
   for (int i = 0; i < 8; i++)
   {
-    bool bit = ((*txPtr >> i) & 0x1) == 0x1;
+    bool bit = ((byte >> i) & 0x1) == 0x1;
     *p++ = (bit ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
   }
-  *p++ = pinCfgOutputHigh; // stop bit
-  *p++ = pinCfgInput;      // idle
+  *p++ = pinCfgOutputHigh & 0xFF; // stop bit
+  *p++ = pinCfgOutputHigh & 0xFF; // idle
 }
 
 void HalfDuplexSerialCore::tx_abort()
 {
   noInterrupts();
-  txBytes = 0;
+  txFIFO_Bytes = 0;
   interrupts();
   while (tx_busy)
   {
     yield();
   }
+  noInterrupts();
+  txFIFO_IN = txFIFO_OUT = &txFIFO[0];
+  txFIFO_Bytes = 0;
+  interrupts();
 }
 
-bool HalfDuplexSerialCore::tx_serial_restart()
+bool HalfDuplexSerialCore::tx_serial_restart(bool initial)
 {
+  if (initial) {
+    // send 1st bit
+    txIFG = gptReg->GTPR - 1;
+    gptReg->GTCNT = txIFG;
+  }
+  else {
+    txFIFO_OUT++;
+    if (txFIFO_OUT >= &txFIFO[txFIFOLen]) {
+      txFIFO_OUT = &txFIFO[0];
+    }
+    txFIFO_Bytes--;
+    if (txFIFO_Bytes <= 0) {
+      return rx_serial_start();
+    }
+  }
+
   tx_busy = true;
-
-  tx_encode();
-  txPtr++;
-  txBytes--;
-
   dtc_info_tx_reset();
-
   R_DTC_Enable(&dtcCtrl);
-
   fspTimer.start();
+  return true;
 }
 
-bool HalfDuplexSerialCore::tx_serial_start(const uint8_t *data, size_t len)
+bool HalfDuplexSerialCore::tx_serial_start()
 {
-  tx_abort();
+  if (!rx_ready) {
+    // Tx is already running.
+    return true;
+  }
+  gptReg->GTSSR_b.SSELCA = 0;
+  fspTimer.stop();
   R_DTC_Disable(&dtcCtrl);
   rx_ready = false;
 
-  txPtr = data;
-  txBytes = len;
-
   dtc_info_tx_init();
 
-  gptReg->GTSSR_b.SSELCA = 0;
-
-  return tx_serial_restart();
+  pinPeripheral(bspPin, pinCfgOutputHigh);
+  return tx_serial_restart(true);
 }
 
 int HalfDuplexSerialCore::rx_decode()
@@ -328,6 +340,7 @@ bool HalfDuplexSerialCore::rx_serial_restart(bool initial)
 
   dtc_info_rx_reset();
   R_DTC_Enable(&dtcCtrl);
+  gptReg->GTSSR_b.SSELCA = 1;
 
   return true;
 }
@@ -345,15 +358,22 @@ bool HalfDuplexSerialCore::rx_serial_start()
 
   dtc_info_rx_init();
 
-  gptReg->GTSSR_b.SSELCA = 1;
+  gptReg->GTCNT = gptReg->GTPR_b.GTPR / 2;
 
+  pinPeripheral(bspPin, pinCfgInput);
   return rx_serial_restart(true);
 }
 
 /*
 Public
 */
-HalfDuplexSerialCore::HalfDuplexSerialCore(FspTimer &timer, dtc_instance_ctrl_t &dtc, transfer_info_t *info, size_t infoLen) : fspTimer(timer), dtcCtrl(dtc), dtcInfo(info), dtcInfoLen(infoLen)
+HalfDuplexSerialCore::HalfDuplexSerialCore(FspTimer &timer, dtc_instance_ctrl_t &dtc, transfer_info_t *info, size_t infoLen)
+    : fspTimer(timer),
+      dtcCtrl(dtc),
+      dtcInfo(info),
+      dtcInfoLen(infoLen),
+      txFIFO_IN(&txFIFO[0]),
+      txFIFO_OUT(&txFIFO[0])
 {
 }
 
@@ -422,34 +442,33 @@ void HalfDuplexSerialCore::end()
 size_t
 HalfDuplexSerialCore::write(uint8_t c)
 {
-  tx_serial_start(&c, sizeof(c));
-  flush();
+  while (txFIFO_Bytes >= txFIFOLen) {
+    yield();
+  }
+
+  tx_encode(c, txFIFO_IN++);
+  if (txFIFO_IN >= &txFIFO[txFIFOLen])
+  {
+    txFIFO_IN = &txFIFO[0];
+  }
+
+  noInterrupts();
+  txFIFO_Bytes++;
+  interrupts();
+
+  (void)tx_serial_start();
 
   return sizeof(c);
 }
 
-size_t
-HalfDuplexSerialCore::write(const uint8_t *buffer, size_t len)
-{
-  // do we want buffering behaviors???
-  tx_serial_start(buffer, len);
-  flush();
-
-  return len;
-}
-
 int HalfDuplexSerialCore::availableForWrite()
 {
-  return 0; // no buffering is supported at this time.
+  return txFIFOLen - txFIFO_Bytes;
 }
 
 void HalfDuplexSerialCore::flush()
 {
-  while (txBytes > 0)
-  {
-    yield();
-  }
-  while (tx_busy)
+  while (txFIFO_Bytes > 0)
   {
     yield();
   }
@@ -457,32 +476,25 @@ void HalfDuplexSerialCore::flush()
 
 int HalfDuplexSerialCore::available()
 {
-  int bytes;
-
-  noInterrupts();
-  bytes = rxFIFO_Bytes;
-  interrupts();
-
-  return bytes;
+  return rxFIFO_Bytes;
 }
 
 int HalfDuplexSerialCore::read()
 {
   uint8_t byte;
 
-  noInterrupts();
   if (rxFIFO_Bytes <= 0)
   {
-    interrupts();
     return -1;
   }
   byte = *rxFIFO_OUT++;
+  noInterrupts();
   rxFIFO_Bytes--;
+  interrupts();
   if (rxFIFO_OUT >= &rxFIFO[rxFIFOLen])
   {
     rxFIFO_OUT = rxFIFO;
   }
-  interrupts();
 
   return (int)byte;
 }
@@ -491,14 +503,11 @@ int HalfDuplexSerialCore::peek()
 {
   uint8_t byte;
 
-  noInterrupts();
   if (rxFIFO_Bytes <= 0)
   {
-    interrupts();
     return -1;
   }
   byte = *rxFIFO_OUT;
-  interrupts();
 
   return (int)byte;
 }

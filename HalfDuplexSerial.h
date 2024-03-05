@@ -3,6 +3,8 @@
 #include <Arduino.h>
 #include <FspTimer.h>
 
+#include <vector>
+
 #include "r_gpt.h"
 #include "r_dtc.h"
 #include "r_elc.h"
@@ -38,7 +40,14 @@ private:
 	    IOPORT_CFG_EVENT_FALLING_EDGE;
 
 	bool tx_busy = false;
-	const static int txBits = 12; // idle(1) + start(1) + data(8) + stop(1) + idle(1)
+	const static int txBits = 12; // idel(1) + start(1) + data(8) + stop(1) + idle(1)
+	uint32_t txIFG;
+	using txPFSBY_t = uint8_t[txBits];
+	const static int txFIFOLen = 16;
+	txPFSBY_t txFIFO[txFIFOLen];
+	txPFSBY_t *txFIFO_IN;
+	txPFSBY_t *txFIFO_OUT;
+	int txFIFO_Bytes;
 	uint8_t txPFSBY[txBits];
 	uint8_t txDebug[txBits];
 	const uint8_t *txPtr;
@@ -77,10 +86,10 @@ private:
 	void dtc_info_rx_init(void);
 	void dtc_info_rx_reset(void);
 
-	void tx_encode(void);
+	void tx_encode(uint8_t byte, txPFSBY_t *pfsby);
 	void tx_abort(void);
-	bool tx_serial_restart(void);
-	bool tx_serial_start(const uint8_t *data, size_t len);
+	bool tx_serial_restart(bool initial = false);
+	bool tx_serial_start();
 
 	int rx_decode(void);
 	bool rx_serial_restart(bool initial = false);
@@ -106,7 +115,9 @@ public:
 	void end();
 
 	size_t write(uint8_t) override;
-	size_t write(const uint8_t *buffer, size_t size) override;
+	size_t write(const uint8_t *buffer, size_t size) override {
+		Print::write(buffer, size);
+	};
 	int availableForWrite() override;
 	void flush(void) override;
 
