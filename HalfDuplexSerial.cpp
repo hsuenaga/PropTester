@@ -205,9 +205,9 @@ void HalfDuplexSerialCore::dtc_info_rx_reset()
   assert(infop <= &dtcInfo[dtcInfoLen]);
 }
 
-void HalfDuplexSerialCore::tx_encode(uint8_t byte, txPFSBY_t *pfsby)
+void HalfDuplexSerialCore::tx_encode(uint8_t byte, txPFSBY_t &pfsby)
 {
-  uint8_t *p = &(*pfsby)[0];
+  uint8_t *p = &(pfsby)[0];
 
   *p++ = pinCfgOutputHigh & 0xFF; // idle
   *p++ = pinCfgOutputLow & 0xFF; // start bit
@@ -277,10 +277,10 @@ bool HalfDuplexSerialCore::tx_serial_start()
   return tx_serial_restart(true);
 }
 
-int HalfDuplexSerialCore::rx_decode(rxPFSBY_t *pfsby)
+int HalfDuplexSerialCore::rx_decode(rxPFSBY_t &pfsby)
 {
   uint8_t v = 0;
-  uint8_t *p = &(*pfsby)[0];
+  uint8_t *p = &pfsby[0];
 
   // start bit must be low
   if ((p[0] & R_PFS_PORT_PIN_PmnPFS_PIDR_Msk))
@@ -428,7 +428,7 @@ HalfDuplexSerialCore::write(uint8_t c)
     yield();
   }
 
-  tx_encode(c, txFIFO_IN++);
+  tx_encode(c, *txFIFO_IN++);
   if (txFIFO_IN >= &txFIFO[txFIFOLen])
   {
     txFIFO_IN = &txFIFO[0];
@@ -468,7 +468,7 @@ int HalfDuplexSerialCore::read()
     return -1;
   }
 
-  int byte = rx_decode(rxFIFO_OUT);
+  int byte = rx_decode(*rxFIFO_OUT);
   rxFIFO_OUT++;
   if (rxFIFO_OUT >= &rxFIFO[rxFIFOLen])
   {
@@ -493,5 +493,5 @@ int HalfDuplexSerialCore::peek()
     return -1;
   }
 
-  return rx_decode(rxFIFO_OUT);
+  return rx_decode(*rxFIFO_OUT);
 }

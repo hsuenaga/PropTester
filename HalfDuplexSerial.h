@@ -40,7 +40,7 @@ private:
 	    IOPORT_CFG_EVENT_FALLING_EDGE;
 
 	bool tx_busy = false;
-	const static int txBits = 12; // idel(<1) + start(1) + data(8) + stop(1) + idle(<1)
+	const static int txBits = 12; // idle(<1) + start(1) + data(8) + stop(1) + idle(<1)
 	uint32_t txIFG;
 	using txPFSBY_t = uint8_t[txBits];
 	const static int txFIFOLen = 16;
@@ -82,12 +82,12 @@ private:
 	void dtc_info_rx_init(void);
 	void dtc_info_rx_reset(void);
 
-	void tx_encode(uint8_t byte, txPFSBY_t *pfsby);
+	void tx_encode(uint8_t byte, txPFSBY_t &pfsby);
 	void tx_abort(void);
 	bool tx_serial_restart(bool initial = false);
 	bool tx_serial_start();
 
-	int rx_decode(rxPFSBY_t *pfsby);
+	int rx_decode(rxPFSBY_t &pfsby);
 	bool rx_serial_restart(bool initial = false);
 	bool rx_serial_start(void);
 
