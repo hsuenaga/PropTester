@@ -93,25 +93,6 @@ exec_stat(char *arg)
 bool
 exec_bl_buffer(char *arg)
 {
-  uint8_t buf[10];
-  size_t len = sizeof(buf);
-
-  message("CHANNEL  :");
-  DShot.get_bl_rx_raw_buff(buf, &len);
-  for (int i = 0; i < len; i++) {
-    message(" %02x", buf[i]);
-  }
-  message("\n");
-
-  message("DEBUG    :");
-  DShot.get_bl_rx_debug_buff(buf, &len);
-  for (int i = 0; i < len; i++) {
-    message(" %02x", buf[i]);
-  }
-  message("\n");
-
-  message("CURRENT A: %02x\n", R_PFS->PORT[DShot.get_bspPinA() >> IOPORT_PRV_PORT_OFFSET].PIN[DShot.get_bspPinA() & BSP_IO_PRV_8BIT_MASK].PmnPFS_BY);
-  message("CURRENT B: %02x\n", R_PFS->PORT[DShot.get_bspPinB() >> IOPORT_PRV_PORT_OFFSET].PIN[DShot.get_bspPinB() & BSP_IO_PRV_8BIT_MASK].PmnPFS_BY);
 }
 
 bool

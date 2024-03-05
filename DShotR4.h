@@ -316,12 +316,4 @@ class DShotR4 {
     pin_size_t get_pwmPinB() {
       return gpt_pwmPinB;
     };
-
-    bool get_bl_rx_raw_buff(uint8_t *dst, size_t *len) {
-      return serialCore.get_rx_raw_buff(dst, len);
-    };
-
-    bool get_bl_rx_debug_buff(uint8_t *dst, size_t *len) {
-      return serialCore.get_rx_debug_buff(dst, len);
-    };
 };

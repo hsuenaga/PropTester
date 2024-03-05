@@ -40,7 +40,7 @@ private:
 	    IOPORT_CFG_EVENT_FALLING_EDGE;
 
 	bool tx_busy = false;
-	const static int txBits = 12; // idel(1) + start(1) + data(8) + stop(1) + idle(1)
+	const static int txBits = 12; // idel(<1) + start(1) + data(8) + stop(1) + idle(<1)
 	uint32_t txIFG;
 	using txPFSBY_t = uint8_t[txBits];
 	const static int txFIFOLen = 16;
@@ -48,19 +48,15 @@ private:
 	txPFSBY_t *txFIFO_IN;
 	txPFSBY_t *txFIFO_OUT;
 	int txFIFO_Bytes;
-	uint8_t txPFSBY[txBits];
-	uint8_t txDebug[txBits];
-	const uint8_t *txPtr;
-	int txBytes;
 
 	bool rx_ready = false;
+	bool rx_overflow = false;
 	const static int rxBits = 10; // start(1) + data(8) + stop(1)
-	uint8_t rxPFSBY[rxBits];
-	uint8_t rxDebug[rxBits];
+	using rxPFSBY_t = uint8_t[rxBits];
 	const static int rxFIFOLen = 16;
-	uint8_t rxFIFO[rxFIFOLen];
-	uint8_t *rxFIFO_IN;
-	uint8_t *rxFIFO_OUT;
+	rxPFSBY_t rxFIFO[rxFIFOLen];
+	rxPFSBY_t *rxFIFO_IN;
+	rxPFSBY_t *rxFIFO_OUT;
 	int rxFIFO_Bytes;
 
 	// external instances
@@ -91,7 +87,7 @@ private:
 	bool tx_serial_restart(bool initial = false);
 	bool tx_serial_start();
 
-	int rx_decode(void);
+	int rx_decode(rxPFSBY_t *pfsby);
 	bool rx_serial_restart(bool initial = false);
 	bool rx_serial_start(void);
 
@@ -134,28 +130,4 @@ public:
 	{
 		return rx_ready;
 	}
-
-	bool get_rx_raw_buff(uint8_t *dst, size_t *len)
-	{
-		if (*len < rxBits)
-		{
-			*len = rxBits;
-			return false;
-		}
-		memcpy(dst, rxPFSBY, rxBits);
-		*len = rxBits;
-		return true;
-	};
-
-	bool get_rx_debug_buff(uint8_t *dst, size_t *len)
-	{
-		if (*len < rxBits)
-		{
-			*len = rxBits;
-			return false;
-		}
-		memcpy(dst, rxDebug, rxBits);
-		*len = rxBits;
-		return true;
-	};
 };
