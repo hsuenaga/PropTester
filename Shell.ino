@@ -22,6 +22,8 @@ struct shell_command_table bootloader_command[] = {
   {"stat", exec_stat},
   {"buffer", exec_bl_buffer},
   {"open", exec_bl_open},
+  {"bootinfo", exec_bl_bootinfo},
+  {"keepalive", exec_bl_keepalive},
   {"write", exec_bl_write},
   {"exit", exec_bl_exit},
   {NULL, NULL}
@@ -67,10 +69,12 @@ bool
 exec_stat(char *arg)
 {
   HalfDuplexSerialCore::Counter_t serialCounter = DShot.serialCore.get_counter();
+  BLHeli::Counter_t blheliCounter = DShot.blHeli.get_counter();
 
   message("--DShot interrupts statistics--\n");
   message("tx_success: %d\n", DShot.tx_success);
   message("tx_error: %d\n", DShot.tx_error);
+
   message("--SerialCore interrupts statistics--\n");
   message("tx_success: %d\n", serialCounter.tx_success);
   message("rx_detect: %d\n", serialCounter.rx_detect);
@@ -78,8 +82,23 @@ exec_stat(char *arg)
   message("rx_good_frames: %d\n", serialCounter.rx_good_frames);
   message("rx_bad_frames: %d\n", serialCounter.rx_bad_frames);
   message("spurious interrupts: %d\n", serialCounter.spurious_interrupts);
-  message("--Spurious interrupts--\n");
+
+  message("--Global spurious interrupts--\n");
   message("overflow inter: %d\n", DShot.spurious_intr);
+
+  message("--BLHeli status--\n");
+  message("tx_buffer_exhausted: %d\n", blheliCounter.tx_buffer_exhausted);
+  message("tx_failure: %d\n", blheliCounter.tx_failure);
+  message("tx_success: %d\n", blheliCounter.tx_success);
+  message("rx_buffer_exhausted: %d\n", blheliCounter.rx_buffer_exhausted);
+  message("rx_timeout: %d\n", blheliCounter.rx_timeout);
+  message("rx_bad_crc: %d\n", blheliCounter.rx_bad_crc);
+  message("rx_success: %d\n", blheliCounter.rx_success);
+  message("rx_error_verify: %d\n", blheliCounter.rx_error_verify);
+  message("rx_error_command: %d\n", blheliCounter.rx_error_command);
+  message("rx_error_crc: %d\n", blheliCounter.rx_error_crc);
+  message("rx_error_unknwon: %d\n", blheliCounter.rx_error_unknown);
+
   message("--MSP status--\n");
   message("received: %d, error: %d\n", Msp.received, Msp.error);
   message("--Serial Status--\n");
@@ -105,6 +124,66 @@ exec_bl_buffer(char *arg)
 }
 
 bool
+exec_bl_bootinfo(char *arg)
+{
+  BLHeli::bootInfo_t info = DShot.blHeli.get_bootinfo();
+  char rstr[5];
+
+  char *p = (char *)&info.Revision;
+  for (int i = 0; i < 4; i++) {
+    if (isprint(p[i])) {
+      rstr[3 - i] = p[i];
+    }
+    else {
+      rstr[i] = ' ';
+    }
+  }
+  rstr[4] = '\0';
+
+  const char *sCPU;
+  switch (info.CPUType)
+  {
+  case BLHeli::ATMEL:
+    sCPU = "Atmel Corporation";
+    break;
+  case BLHeli::SILAB:
+    sCPU = "Silicon Laboratories";
+    break;
+  case BLHeli::ARM:
+    sCPU = "Arm Limited";
+    break;
+  default:
+    sCPU = "Unknown";
+    break;
+  }
+
+  message("BootInfo:\n");
+  message("Revision: 0x%08x (%s)\n", info.Revision, rstr);
+  message("Signature: 0x%04x (%s)\n", info.Signature, sCPU);
+  message("Boot Version: %u\n", info.Version);
+  message("Boot Pages: %u\n", info.Pages);
+  message("Command STATUS: 0x%0x\n", info.CommandStatus);
+
+  return true;
+}
+
+bool
+exec_bl_keepalive(char *arg)
+{
+  message("Sending keepalive...");
+  bool result = DShot.blHeli.keepAlive();
+  if (result) {
+    message("success.\n");
+  }
+  else
+  {
+    message("failure.\n");
+  }
+
+  return result;
+}
+
+bool
 exec_bl_open(char *arg)
 {
   uint8_t bootInfo[9];
@@ -114,26 +193,6 @@ exec_bl_open(char *arg)
     message("failure.\n");
   }
   message("done.\n");
-  /*
-  message("BootInfo:");
-  for (int i = 0; i < sizeof(bootInfo); i++) {
-    bootInfo[i] = (uint8_t)DShot.bl_read();
-    message(" %02x", bootInfo[i]);
-  }
-  message("\n");
-  // BOOT_MSG
-  message("BootMessage(Revision): %c%c%c%c\n", bootInfo[0], bootInfo[1], bootInfo[2], bootInfo[3]);
-  // SIGNATURE_001
-  message("Signature.1: %02x\n", bootInfo[4]);
-  // SIGNATURE_002
-  message("Signature.2: %02x\n", bootInfo[5]);
-  // BOOT_VERSION
-  message("Boot Version: %u\n", bootInfo[6]);
-  // BOOT_PAGES
-  message("Boot Pages: %u\n", bootInfo[7]);
-  // COMMAND_STATUS
-  message("Command STATUS: 0x%0x\n", bootInfo[8]);
-*/
   return true;
 }
 
