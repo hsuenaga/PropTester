@@ -209,15 +209,15 @@ void HalfDuplexSerialCore::tx_encode(uint8_t byte, txPFSBY_t &pfsby)
 {
   uint8_t *p = &(pfsby)[0];
 
-  *p++ = pinCfgOutputHigh & 0xFF; // idle
-  *p++ = pinCfgOutputLow & 0xFF; // start bit
+  pfsby[0] = pinCfgOutputHigh & 0xFF; // idle
+  pfsby[1] = pinCfgOutputLow & 0xFF; // start bit
   for (int i = 0; i < 8; i++)
   {
     bool bit = ((byte >> i) & 0x1) == 0x1;
-    *p++ = (bit ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
+    pfsby[2 + i] = (bit ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
   }
-  *p++ = pinCfgOutputHigh & 0xFF; // stop bit
-  *p++ = pinCfgOutputHigh & 0xFF; // idle
+  pfsby[10] = pinCfgOutputHigh & 0xFF; // stop bit
+  pfsby[11] = pinCfgOutputHigh & 0xFF; // idle
 }
 
 void HalfDuplexSerialCore::tx_abort()
@@ -280,16 +280,15 @@ bool HalfDuplexSerialCore::tx_serial_start()
 int HalfDuplexSerialCore::rx_decode(rxPFSBY_t &pfsby)
 {
   uint8_t v = 0;
-  uint8_t *p = &pfsby[0];
 
   // start bit must be low
-  if ((p[0] & R_PFS_PORT_PIN_PmnPFS_PIDR_Msk))
+  if ((pfsby[0] & R_PFS_PORT_PIN_PmnPFS_PIDR_Msk))
   {
     return -1;
   }
 
   // stop bit must be high
-  if (!(p[9] & R_PFS_PORT_PIN_PmnPFS_PIDR_Msk))
+  if (!(pfsby[9] & R_PFS_PORT_PIN_PmnPFS_PIDR_Msk))
   {
     return -1;
   }
@@ -297,7 +296,7 @@ int HalfDuplexSerialCore::rx_decode(rxPFSBY_t &pfsby)
   for (int i = 1; i < 9; i++)
   {
     v >>= 1;
-    v |= (p[i] & R_PFS_PORT_PIN_PmnPFS_PIDR_Msk) ? 0x80 : 0;
+    v |= (pfsby[i] & R_PFS_PORT_PIN_PmnPFS_PIDR_Msk) ? 0x80 : 0;
   }
   return (int)v;
 }
