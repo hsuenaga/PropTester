@@ -99,19 +99,11 @@ bool
 exec_bl_open(char *arg)
 {
   uint8_t bootInfo[9];
-  long start = millis();
 
-  DShot.bl_open();
   message("hello sequence sent to BLHeli...");
-  while (DShot.bl_available() < sizeof(bootInfo)) {
-    yield();
-    if ((millis() - start) > 1000) {
-      message("timeout.\n");
-      DShot.bl_flush();
-      return false;
-    }
-  }
+  DShot.blHeli.sendSignature();
   message("done.\n");
+  /*
   message("BootInfo:");
   for (int i = 0; i < sizeof(bootInfo); i++) {
     bootInfo[i] = (uint8_t)DShot.bl_read();
@@ -130,7 +122,7 @@ exec_bl_open(char *arg)
   message("Boot Pages: %u\n", bootInfo[7]);
   // COMMAND_STATUS
   message("Command STATUS: 0x%0x\n", bootInfo[8]);
-
+*/
   return true;
 }
 
@@ -146,7 +138,7 @@ exec_bl_write(char *arg)
   }
 
   while (*argp != '\0') {
-    DShot.bl_write((uint8_t)*argp);
+    DShot.serialCore.write((uint8_t)*argp);
     argp++;
     n++;
   }
@@ -159,7 +151,7 @@ bool
 exec_bl_exit(char *arg)
 {
   message("Finish bootloader session...");
-  DShot.bl_exit();
+  DShot.bootloader_exit();
   message("done.\n");
   current_table = shell_command;
 
@@ -241,7 +233,7 @@ bool
 exec_bootloader(char *arg)
 {
   message("Entering BLHeli bootloader mode...");
-  DShot.bl_enter();
+  DShot.bootloader_enter();
   message("done\n");
   current_table = bootloader_command;
   return true;

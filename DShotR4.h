@@ -10,6 +10,7 @@
 #include "elc_defines.h"
 
 #include "HalfDuplexSerial.h"
+#include "BLHeli.h"
 
 #undef DEBUG_CHANNEL_A
 
@@ -160,12 +161,6 @@ class DShotR4 {
     float tolerance_t1h;
     float tolerance_t0h;
 
-    const uint8_t blheli_signature[21] = {
-      0,0,0,0,0,0,0,0,0,0,0,0,0x0D,
-      'B','L','H','e','l','i',
-      0xF4,0x7D
-    };
-
     enum DShotType dshot_type;
     uint32_t period_count;
     uint32_t t1h_count;
@@ -256,6 +251,7 @@ class DShotR4 {
   public:
     // Serial Communication for BLHeli XXX: should be private
     HalfDuplexSerialCore serialCore;
+    BLHeli blHeli;
 
     DShotR4(float tr_hz = 1.05, float tr_t1h = 1.05, float tr_t0h = 0.95);
     ~DShotR4();
@@ -276,14 +272,8 @@ class DShotR4 {
     bool suspend(void);
     bool arm(void);
     bool reset(void);
-
-    bool bl_enter(void);
-    bool bl_exit(void);
-    bool bl_open(void);
-    int bl_read(void);
-    size_t bl_write(uint8_t data);
-    void bl_flush(void);
-    int bl_available(void);
+    bool bootloader_enter();
+    bool bootloader_exit();
 
     uint32_t get_ifg_us() {
       return dshot_ifg_us;

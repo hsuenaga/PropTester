@@ -126,7 +126,10 @@ DShotR4::dtc_init(void)
 /*
  * public
  */
-DShotR4::DShotR4(float tr_period, float tr_t1h, float tr_t0h): fsp_timer(), serialCore(this->fsp_timer, this->dtc_ctrl, &this->dtc_info[0], this->dtc_info_len)
+DShotR4::DShotR4(float tr_period, float tr_t1h, float tr_t0h)
+  : fsp_timer(),
+    serialCore(this->fsp_timer, this->dtc_ctrl, &this->dtc_info[0], this->dtc_info_len),
+    blHeli(serialCore)
 {
   this->tolerance_hz = tr_period;
   this->tolerance_t1h = tr_t1h;
@@ -333,4 +336,35 @@ DShotR4::reset()
   delay(1000);
 }
 
+bool
+DShotR4::bootloader_enter()
+{
+ 	// disable GPIO/GTIO while setup.
+	if (gpt_pwmChannelA_enable)
+	{
+		pinPeripheral(gpt_pwmPinA, pin_cfg_output_high);
+	}
+	if (gpt_pwmChannelB_enable)
+	{
+		pinPeripheral(gpt_pwmPinB, pin_cfg_output_high);
+	}
 
+	suspend();
+	delay(1000); // wait for signal detection timeout.
+
+	serialCore.begin(CHANNEL_B, gpt_pwmPinB, 19200);
+  blHeli.begin();
+  return true;
+}
+
+bool
+DShotR4::bootloader_exit()
+{
+  blHeli.end();
+  serialCore.end();
+
+  // restore waveform transmission mode.
+  dtc_dshot_init();
+  gpt_dshot_init();
+  return true;
+}
