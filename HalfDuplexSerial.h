@@ -13,6 +13,25 @@
 
 class HalfDuplexSerialCore : public Stream
 {
+public:
+	struct Counter_t
+	{
+		uint32_t tx_success;
+		uint32_t rx_detect;
+		uint32_t rx_overflow;
+		uint32_t rx_good_frames;
+		uint32_t rx_bad_frames;
+		uint32_t spurious_interrupts;
+	};
+
+	struct Buffer_t
+	{
+		uint32_t txFIFO_Max;
+		uint32_t txFIFO_Len;
+		uint32_t rxFIFO_Max;
+		uint32_t rxFIFO_Len;
+	};
+
 private:
 	TimerPWMChannel_t channel;
 	pin_size_t digitalPin;
@@ -22,6 +41,8 @@ private:
 	int bspPinOffset;
 	R_GPT0_Type *gptReg;
 	uint32_t pinCfgSave;
+	Counter_t counter;
+	Buffer_t buffer;
 
 	static const uint32_t pinCfgOutputHigh =
 	    IOPORT_CFG_PORT_DIRECTION_OUTPUT |
@@ -38,6 +59,7 @@ private:
 	    IOPORT_CFG_PULLUP_ENABLE |
 	    IOPORT_CFG_DRIVE_MID |
 	    IOPORT_CFG_EVENT_FALLING_EDGE;
+
 
 	bool tx_busy = false;
 	const static int txBits = 12; // idle(<1) + start(1) + data(8) + stop(1) + idle(<1)
@@ -92,16 +114,6 @@ private:
 	bool rx_serial_start(void);
 
 public:
-	struct HalfDuplexSerialCoreCounter_t
-	{
-		uint32_t tx_success;
-		uint32_t rx_detect;
-		uint32_t rx_overflow;
-		uint32_t rx_good_frames;
-		uint32_t rx_bad_frames;
-		uint32_t spurious_interrupts;
-	} Counter;
-
 	HalfDuplexSerialCore(FspTimer &timer, dtc_instance_ctrl_t &dtc, transfer_info_t *info, size_t infoLen);
 	~HalfDuplexSerialCore();
 
@@ -129,5 +141,17 @@ public:
 	bool is_rx_ready(void)
 	{
 		return rx_ready;
+	}
+
+	Counter_t get_counter(void)
+	{
+		return counter;
+	}
+
+	Buffer_t get_buffer(void)
+	{
+		buffer.txFIFO_Len = txFIFO_Bytes;
+		buffer.rxFIFO_Len = rxFIFO_Bytes;
+		return buffer;
 	}
 };

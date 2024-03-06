@@ -3,7 +3,7 @@
 void HalfDuplexSerialCore::tx_serial_complete(timer_callback_args_t(*arg))
 {
   tx_busy = false;
-  Counter.tx_success++;
+  counter.tx_success++;
   tx_serial_restart(false);
 
   return;
@@ -11,7 +11,7 @@ void HalfDuplexSerialCore::tx_serial_complete(timer_callback_args_t(*arg))
 
 void HalfDuplexSerialCore::rx_serial_complete(timer_callback_args_t(*arg))
 {
-  Counter.rx_detect++;
+  counter.rx_detect++;
   rx_serial_restart(false);
 
   return;
@@ -311,12 +311,15 @@ bool HalfDuplexSerialCore::rx_serial_restart(bool initial)
       rxFIFO_IN = &rxFIFO[0];
     }
     rxFIFO_Bytes++;
+    if (buffer.rxFIFO_Max < rxFIFO_Bytes) {
+      buffer.rxFIFO_Max = rxFIFO_Bytes;
+    }
   }
   if (rxFIFO_Bytes >= rxFIFOLen)
   {
     // discard next frame.
     rx_overflow = true;
-    Counter.rx_overflow++;
+    counter.rx_overflow++;
   }
 
   dtc_info_rx_reset();
@@ -377,7 +380,7 @@ void HalfDuplexSerialCore::overflow_interrupt(timer_callback_args_t(*arg))
     return rx_serial_complete(arg);
   }
 
-  Counter.spurious_interrupts++;
+  counter.spurious_interrupts++;
   return;
 }
 
@@ -436,6 +439,10 @@ HalfDuplexSerialCore::write(uint8_t c)
   noInterrupts();
   txFIFO_Bytes++;
   interrupts();
+  if (buffer.txFIFO_Max < txFIFO_Bytes)
+  {
+    buffer.txFIFO_Max = txFIFO_Bytes;
+  }
 
   (void)tx_serial_start();
 
@@ -479,7 +486,10 @@ int HalfDuplexSerialCore::read()
   interrupts();
 
   if (byte < 0) {
-    Counter.rx_bad_frames++;
+    counter.rx_bad_frames++;
+  }
+  else {
+    counter.rx_good_frames++;
   }
 
   return byte;

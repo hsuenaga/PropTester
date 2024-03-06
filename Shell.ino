@@ -66,16 +66,18 @@ exec_reg(char *arg)
 bool
 exec_stat(char *arg)
 {
+  HalfDuplexSerialCore::Counter_t serialCounter = DShot.serialCore.get_counter();
+
   message("--DShot interrupts statistics--\n");
   message("tx_success: %d\n", DShot.tx_success);
   message("tx_error: %d\n", DShot.tx_error);
   message("--SerialCore interrupts statistics--\n");
-  message("tx_success: %d\n", DShot.serialCore.Counter.tx_success);
-  message("rx_detect: %d\n", DShot.serialCore.Counter.rx_detect);
-  message("rx_overflow: %d\n", DShot.serialCore.Counter.rx_overflow);
-  message("rx_good_frames: %d\n", DShot.serialCore.Counter.rx_good_frames);
-  message("rx_bad_frames: %d\n", DShot.serialCore.Counter.rx_bad_frames);
-  message("spurious interrupts: %d\n", DShot.serialCore.Counter.spurious_interrupts);
+  message("tx_success: %d\n", serialCounter.tx_success);
+  message("rx_detect: %d\n", serialCounter.rx_detect);
+  message("rx_overflow: %d\n", serialCounter.rx_overflow);
+  message("rx_good_frames: %d\n", serialCounter.rx_good_frames);
+  message("rx_bad_frames: %d\n", serialCounter.rx_bad_frames);
+  message("spurious interrupts: %d\n", serialCounter.spurious_interrupts);
   message("--Spurious interrupts--\n");
   message("overflow inter: %d\n", DShot.spurious_intr);
   message("--MSP status--\n");
@@ -93,6 +95,13 @@ exec_stat(char *arg)
 bool
 exec_bl_buffer(char *arg)
 {
+  HalfDuplexSerialCore::Buffer_t serialBuffer = DShot.serialCore.get_buffer();
+
+  message("--SerialCore buffer statistics--\n");
+  message("txFIFO_Max: %d\n", serialBuffer.txFIFO_Max);
+  message("txFIFO_Len: %d\n", serialBuffer.txFIFO_Len);
+  message("rxFIFO_Max: %d\n", serialBuffer.rxFIFO_Max);
+  message("rxFIFO_Len: %d\n", serialBuffer.rxFIFO_Len);
 }
 
 bool
