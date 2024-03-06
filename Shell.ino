@@ -110,7 +110,9 @@ exec_bl_open(char *arg)
   uint8_t bootInfo[9];
 
   message("hello sequence sent to BLHeli...");
-  DShot.blHeli.sendSignature();
+  if (!DShot.blHeli.sendSignature()) {
+    message("failure.\n");
+  }
   message("done.\n");
   /*
   message("BootInfo:");
@@ -242,8 +244,12 @@ bool
 exec_bootloader(char *arg)
 {
   message("Entering BLHeli bootloader mode...");
-  DShot.bootloader_enter();
-  message("done\n");
+  if (!DShot.bootloader_enter()) {
+    message("failure\n");
+  }
+  else {
+    message("done\n");
+  }
   current_table = bootloader_command;
   return true;
 }

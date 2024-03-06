@@ -11,8 +11,7 @@ BLHeli::~BLHeli()
 bool
 BLHeli::begin()
 {
-	sendSignature();
-	return true;
+	return sendSignature();
 }
 
 bool
@@ -27,5 +26,11 @@ bool
 BLHeli::sendSignature()
 {
 	port.write(blheli_signature, sizeof(blheli_signature));
+
+	size_t len = port.readBytes(bootInfo, sizeof(bootInfo));
+	if (len != sizeof(bootInfo)) {
+		return false;
+	}
+
 	return true;
 }

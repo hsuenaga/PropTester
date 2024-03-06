@@ -353,8 +353,7 @@ DShotR4::bootloader_enter()
 	delay(1000); // wait for signal detection timeout.
 
 	serialCore.begin(CHANNEL_B, gpt_pwmPinB, 19200);
-  blHeli.begin();
-  return true;
+  return blHeli.begin();
 }
 
 bool
