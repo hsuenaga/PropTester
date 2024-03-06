@@ -406,6 +406,7 @@ void HalfDuplexSerialCore::begin(TimerPWMChannel_t ch, pin_size_t pin, uint32_t 
   elc_link((bspPin >> IOPORT_PRV_PORT_OFFSET));
 
   rx_serial_start();
+  isOpen = true;
 }
 
 void HalfDuplexSerialCore::end()
@@ -421,11 +422,17 @@ void HalfDuplexSerialCore::end()
 
   tx_busy = false;
   rx_ready = false;
+  isOpen = false;
 }
 
 size_t
 HalfDuplexSerialCore::write(uint8_t c)
 {
+  if (!isOpen)
+  {
+    return 0;
+  }
+
   while (txFIFO_Bytes >= txFIFOLen) {
     yield();
   }
@@ -451,11 +458,19 @@ HalfDuplexSerialCore::write(uint8_t c)
 
 int HalfDuplexSerialCore::availableForWrite()
 {
+  if (!isOpen)
+  {
+    return -1;
+  }
   return txFIFOLen - txFIFO_Bytes;
 }
 
 void HalfDuplexSerialCore::flush()
 {
+  if (!isOpen)
+  {
+    return;
+  }
   while (txFIFO_Bytes > 0)
   {
     yield();
@@ -464,11 +479,19 @@ void HalfDuplexSerialCore::flush()
 
 int HalfDuplexSerialCore::available()
 {
+  if (!isOpen)
+  {
+    return -1;
+  }
   return rxFIFO_Bytes;
 }
 
 int HalfDuplexSerialCore::read()
 {
+  if (!isOpen)
+  {
+    return -1;
+  }
   if (rxFIFO_Bytes <= 0)
   {
     return -1;
@@ -497,6 +520,10 @@ int HalfDuplexSerialCore::read()
 
 int HalfDuplexSerialCore::peek()
 {
+  if (!isOpen)
+  {
+    return -1;
+  }
   if (rxFIFO_Bytes <= 0)
   {
     return -1;

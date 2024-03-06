@@ -41,6 +41,7 @@ private:
 	int bspPinOffset;
 	R_GPT0_Type *gptReg;
 	uint32_t pinCfgSave;
+	bool isOpen;
 	Counter_t counter;
 	Buffer_t buffer;
 
@@ -132,6 +133,11 @@ public:
 	int available(void) override;
 	int read(void) override;
 	int peek(void) override;
+
+	bool is_open()
+	{
+		return isOpen;
+	}
 
 	bool is_tx_busy(void)
 	{
