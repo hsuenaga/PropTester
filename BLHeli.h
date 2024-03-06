@@ -92,6 +92,7 @@ public:
 	bool end();
 	bool sendSignature();
 	bool keepAlive();
+	bool restart();
 
 	bootInfo_t get_bootinfo()
 	{

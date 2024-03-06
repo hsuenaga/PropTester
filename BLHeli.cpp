@@ -200,3 +200,15 @@ BLHeli::keepAlive()
 
 	return false;
 }
+
+bool
+BLHeli::restart()
+{
+	uint8_t cmd[] = {RUN, 0};
+	if (send(cmd, 2) == false)
+	{
+		return false;
+	}
+
+	return true;
+}

@@ -24,6 +24,7 @@ struct shell_command_table bootloader_command[] = {
   {"open", exec_bl_open},
   {"bootinfo", exec_bl_bootinfo},
   {"keepalive", exec_bl_keepalive},
+  {"restart", exec_bl_restart},
   {"write", exec_bl_write},
   {"exit", exec_bl_exit},
   {NULL, NULL}
@@ -172,6 +173,22 @@ exec_bl_keepalive(char *arg)
 {
   message("Sending keepalive...");
   bool result = DShot.blHeli.keepAlive();
+  if (result) {
+    message("success.\n");
+  }
+  else
+  {
+    message("failure.\n");
+  }
+
+  return result;
+}
+
+bool
+exec_bl_restart(char *arg)
+{
+  message("Restarting bootloader...");
+  bool result = DShot.blHeli.restart();
   if (result) {
     message("success.\n");
   }
