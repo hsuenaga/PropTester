@@ -171,9 +171,7 @@ BLHeli::begin()
 bool
 BLHeli::end()
 {
-	// XXX: send exit command(0) to BLHeli.
-
-	return true;
+	return restart();
 }
 
 bool
