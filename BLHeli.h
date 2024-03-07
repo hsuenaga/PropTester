@@ -113,6 +113,7 @@ public:
 	bool keepAlive();
 	bool restart();
 	bool setAddress(uint16_t addr);
+	bool setBuffer(const uint8_t *buf, uint16_t len);
 	bool readData(uint8_t type, uint8_t *buf, uint16_t len);
 	bool pageErase();
 

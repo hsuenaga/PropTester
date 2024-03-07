@@ -242,6 +242,31 @@ BLHeli::setAddress(uint16_t addr)
 }
 
 bool
+BLHeli::setBuffer(const uint8_t *buf, uint16_t len)
+{
+	uint8_t cmd[4] = {
+		SET_BUFFER,
+		0,
+		(uint8_t)((len >> 8) & 0xFF),
+		(uint8_t)(len & 0xFF)
+	};
+
+	if (send(cmd, sizeof(cmd)) == false)
+	{
+		return false;
+	}
+	if (recvAck() != SUCCESS) {
+		return false;
+	}
+
+	if (send(buf, len) == false)
+	{
+		return false;
+	}
+	return (recvAck() == SUCCESS);
+}
+
+bool
 BLHeli::readData(uint8_t type, uint8_t *buf, uint16_t len)
 {
 	if (len > 256) {
