@@ -137,7 +137,10 @@ BLHeli::sendSignature()
 {
 	uint8_t buf[9];
 
-	port.write(blheli_signature, sizeof(blheli_signature));
+	memset(&bootInfo, 0, sizeof(bootInfo));
+	restart();
+	restart();
+	send(blheli_signature, sizeof(blheli_signature));
 
 	size_t len = port.readBytes(buf, sizeof(buf));
 	if (len != sizeof(buf)) {

@@ -68,10 +68,7 @@ public:
 	};
 
 private:
-	const uint8_t blheli_signature[21] = {
-	    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x0D,
-	    'B', 'L', 'H', 'e', 'l', 'i',
-	    0xF4, 0x7D};
+	const uint8_t blheli_signature[6] = {'B', 'L', 'H', 'e', 'l', 'i'};
 	bootInfo_t bootInfo;
 	bool conected;
 	uint8_t txrxBuf[192];
