@@ -254,3 +254,19 @@ BLHeli::readData(uint8_t type, uint8_t *buf, uint16_t len)
 	}
 	return (recv(buf, len) == SUCCESS);
 }
+
+bool
+BLHeli::pageErase()
+{
+	uint8_t cmd[2] = {ERASE_FLASH, 0x01};
+
+	if (send(cmd, sizeof(cmd)) == false) {
+		return false;
+	}
+
+	port.setTimeout(3000);
+	uint8_t code = recvAck();
+	port.setTimeout(1000);
+
+	return (code == SUCCESS);
+}
