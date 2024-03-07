@@ -51,6 +51,27 @@ public:
 		SET_ADDRESS = 0xFF,
 	};
 
+	enum escVariable_t
+	{
+		VAR_STATUS = 0xEB00,
+	};
+
+	enum escProtocl_t
+	{
+		PROTO_NONE = 0,
+		PROTO_NORMAL = 1,
+		PROTO_ONESHOT125 = 2,
+		PROTO_DSHOT = 5,
+	};
+
+	struct __attribute__((__packed__)) EscStatus_t {
+		uint8_t unknown[3];
+		uint32_t protocol;
+		uint32_t good_frames;
+		uint32_t bad_frames;
+		uint32_t unknown2;
+	};
+
 	struct Counter_t
 	{
 		uint32_t tx_buffer_exhausted;
@@ -71,7 +92,7 @@ private:
 	const uint8_t blheli_signature[6] = {'B', 'L', 'H', 'e', 'l', 'i'};
 	bootInfo_t bootInfo;
 	bool conected;
-	uint8_t txrxBuf[192];
+	uint8_t txrxBuf[256 + 3];
 	Counter_t counter;
 
 	Stream &port;
@@ -92,6 +113,7 @@ public:
 	bool keepAlive();
 	bool restart();
 	bool setAddress(uint16_t addr);
+	bool readData(uint8_t type, uint8_t *buf, uint16_t len);
 
 	bootInfo_t get_bootinfo()
 	{

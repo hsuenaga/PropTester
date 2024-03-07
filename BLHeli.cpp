@@ -240,3 +240,17 @@ BLHeli::setAddress(uint16_t addr)
 	}
 	return (recvAck() == SUCCESS);
 }
+
+bool
+BLHeli::readData(uint8_t type, uint8_t *buf, uint16_t len)
+{
+	if (len > 256) {
+		return false;
+	}
+
+	uint8_t cmd[2] = {type, (uint8_t)(len == 256 ? 0 : len)};
+	if (send(cmd, sizeof(cmd)) == false) {
+		return false;
+	}
+	return (recv(buf, len) == SUCCESS);
+}
