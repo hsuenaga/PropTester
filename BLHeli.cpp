@@ -78,7 +78,7 @@ BLHeli::recv(uint8_t *buf, size_t len, bool hasCRC)
 	}
 
 	uint8_t code = observeResultCode(txrxBuf[recvLen - 1]);
-	if (code == SUCCESS) {
+	if (code == SUCCESS && buf != NULL && len > 0) {
 		memcpy(buf, &txrxBuf[0], len);
 	}
 	return code;
