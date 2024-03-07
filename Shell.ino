@@ -163,7 +163,6 @@ exec_bl_bootinfo(char *arg)
   message("Signature: 0x%04x (%s)\n", info.Signature, sCPU);
   message("Boot Version: %u\n", info.Version);
   message("Boot Pages: %u\n", info.Pages);
-  message("Command STATUS: 0x%0x\n", info.CommandStatus);
 
   return true;
 }

@@ -9,10 +9,10 @@ class BLHeli
 public:
 	enum cpuType_t
 	{
+		UNKNOWN = 0,
 		ARM,
 		SILAB,
 		ATMEL,
-		UNKNOWN
 	};
 	struct bootInfo_t
 	{
@@ -20,7 +20,7 @@ public:
 		uint16_t Signature;
 		uint8_t Version;
 		uint8_t Pages;
-		uint8_t CommandStatus;
+
 		cpuType_t CPUType;
 	};
 
@@ -78,8 +78,9 @@ private:
 
 	uint16_t crcCompute(const uint8_t *buf, size_t len);
 	bool send(const uint8_t *buf, size_t len);
-	uint8_t recv(uint8_t *buf, size_t len);
+	uint8_t recv(uint8_t *buf, size_t len, bool hasCRC = true);
 	uint8_t recvAck();
+	uint8_t observeResultCode(uint8_t code);
 
 public:
 	BLHeli(Stream &);

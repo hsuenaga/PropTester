@@ -47,40 +47,52 @@ BLHeli::send(const uint8_t *buf, size_t len)
 }
 
 uint8_t
-BLHeli::recv(uint8_t *buf, size_t len)
+BLHeli::recv(uint8_t *buf, size_t len, bool hasCRC)
 {
-	if (len > sizeof(txrxBuf) - 3)
-	{
+	int recvLen = hasCRC ? len + 3 : len + 1;
+	if (recvLen > sizeof(txrxBuf)) {
+		counter.rx_buffer_exhausted++;
 		return NONE;
 	}
 
-	int recvLen = (len == 0) ? 1 : len + 3;
 	int n = port.readBytes(&txrxBuf[0], recvLen);
-	if (n != recvLen) {
+	if (n != recvLen)
+	{
 		counter.rx_timeout++;
 		return NONE;
 	}
 
-	uint8_t code = NONE;
-	if (len > 0)
+	if (hasCRC)
 	{
 		uint16_t crc = crcCompute(&txrxBuf[0], len);
 		if (txrxBuf[len] != (crc & 0xFF))
 		{
 			counter.rx_bad_crc++;
-			return false;
+			return NONE;
 		}
 		if (txrxBuf[len + 1] != ((crc >> 8) & 0xFF))
 		{
 			counter.rx_bad_crc++;
-			return false;
+			return NONE;
 		}
-		code = txrxBuf[len + 2];
-	}
-	else {
-		code = txrxBuf[0];
 	}
 
+	uint8_t code = observeResultCode(txrxBuf[recvLen - 1]);
+	if (code == SUCCESS) {
+		memcpy(buf, &txrxBuf[0], len);
+	}
+	return code;
+}
+
+uint8_t
+BLHeli::recvAck()
+{
+	return recv(NULL, 0, false);
+}
+
+uint8_t
+BLHeli::observeResultCode(uint8_t code)
+{
 	switch (code)
 	{
 	case SUCCESS:
@@ -102,12 +114,6 @@ BLHeli::recv(uint8_t *buf, size_t len)
 	}
 
 	return code;
-}
-
-uint8_t
-BLHeli::recvAck()
-{
-	return recv(NULL, 0);
 }
 
 BLHeli::BLHeli(Stream &s) : port(s)
@@ -135,22 +141,21 @@ BLHeli::end()
 bool
 BLHeli::sendSignature()
 {
-	uint8_t buf[9];
+	uint8_t buf[8];
 
 	memset(&bootInfo, 0, sizeof(bootInfo));
 	restart();
 	restart();
 	send(blheli_signature, sizeof(blheli_signature));
 
-	size_t len = port.readBytes(buf, sizeof(buf));
-	if (len != sizeof(buf)) {
+	uint8_t code = recv(buf, sizeof(buf), false);
+	if (code != SUCCESS) {
 		return false;
 	}
 	bootInfo.Revision = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
 	bootInfo.Signature = (buf[4] << 8) | buf[5];
 	bootInfo.Version = buf[6];
 	bootInfo.Pages = buf[7];
-	bootInfo.CommandStatus = buf[8];
 
 	switch (bootInfo.Signature)
 	{
