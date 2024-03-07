@@ -24,6 +24,7 @@ struct shell_command_table bootloader_command[] = {
   {"open", exec_bl_open},
   {"bootinfo", exec_bl_bootinfo},
   {"keepalive", exec_bl_keepalive},
+  {"setaddress", exec_bl_setaddress},
   {"restart", exec_bl_restart},
   {"write", exec_bl_write},
   {"exit", exec_bl_exit},
@@ -180,6 +181,35 @@ exec_bl_keepalive(char *arg)
     message("failure.\n");
   }
 
+  return result;
+}
+
+bool
+exec_bl_setaddress(char *arg)
+{
+  if (arg == NULL) {
+    message("missing argument.\n");
+    return false;
+  }
+
+  char *endp = NULL;
+  long value = strtol(arg, &endp, 0);
+  if (*endp != '\0') {
+    message("invalid argument \"%s\". need address value.\n", arg);
+    return false;
+  }
+  if (value < 0x0000 || value > 0xFFFF) {
+    message("invalid argument \"%s\". need address from 0x0000 to 0xFFFF.\n", arg);
+    return false;
+  }
+  message("send set address command...");
+  bool result = DShot.blHeli.setAddress((uint16_t)value);
+  if (result) {
+    message("success.\n");
+  }
+  else {
+    message("failure.\n");
+  }
   return result;
 }
 

@@ -213,10 +213,30 @@ bool
 BLHeli::restart()
 {
 	uint8_t cmd[] = {RUN, 0};
-	if (send(cmd, 2) == false)
+	if (send(cmd, sizeof(cmd)) == false)
 	{
 		return false;
 	}
 
 	return true;
+}
+
+bool
+BLHeli::setAddress(uint16_t addr)
+{
+	if (addr == 0xFFFF) {
+		return true;
+	}
+
+	uint8_t cmd[4] = {
+	    SET_ADDRESS, 0,
+	    ((addr >> 8) & 0xFF),
+	    (addr & 0xFF)
+	};
+
+	if (send(cmd, sizeof(cmd)) == false)
+	{
+		return false;
+	}
+	return (recvAck() == SUCCESS);
 }

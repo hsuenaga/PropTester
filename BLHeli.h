@@ -91,6 +91,7 @@ public:
 	bool sendSignature();
 	bool keepAlive();
 	bool restart();
+	bool setAddress(uint16_t addr);
 
 	bootInfo_t get_bootinfo()
 	{
