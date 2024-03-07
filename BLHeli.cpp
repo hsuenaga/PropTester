@@ -116,6 +116,44 @@ BLHeli::observeResultCode(uint8_t code)
 	return code;
 }
 
+void
+BLHeli::parseBootInfo(uint8_t (&buf)[8])
+{
+	bootInfo.Revision = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
+	bootInfo.Signature = (buf[4] << 8) | buf[5];
+	bootInfo.Version = buf[6];
+	bootInfo.Pages = buf[7];
+
+	switch (bootInfo.Signature)
+	{
+	case 0x9307:
+	case 0x930A:
+	case 0x930F:
+	case 0x940B:
+		bootInfo.CPUType = ATMEL;
+		break;
+	case 0xF310:
+	case 0xF330:
+	case 0xF410:
+	case 0xF390:
+	case 0xF850:
+	case 0xE8B1:
+	case 0xE8B2:
+		bootInfo.CPUType = SILAB;
+		break;
+	default:
+		if (buf[4] == 0x06 && buf[5] > 0x00 && buf[5] < 0x90)
+		{
+			bootInfo.CPUType = ARM;
+		}
+		else
+		{
+			bootInfo.CPUType = UNKNOWN;
+		}
+		break;
+	}
+}
+
 BLHeli::BLHeli(Stream &s) : port(s)
 {
 }
@@ -152,40 +190,8 @@ BLHeli::sendSignature()
 	if (code != SUCCESS) {
 		return false;
 	}
-	bootInfo.Revision = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
-	bootInfo.Signature = (buf[4] << 8) | buf[5];
-	bootInfo.Version = buf[6];
-	bootInfo.Pages = buf[7];
 
-	switch (bootInfo.Signature)
-	{
-	case 0x9307:
-	case 0x930A:
-	case 0x930F:
-	case 0x940B:
-		bootInfo.CPUType = ATMEL;
-		break;
-	case 0xF310:
-	case 0xF330:
-	case 0xF410:
-	case 0xF390:
-	case 0xF850:
-	case 0xE8B1:
-	case 0xE8B2:
-		bootInfo.CPUType = SILAB;
-		break;
-	default:
-		if (buf[4] == 0x06 && buf[5] > 0x00 && buf[5] < 0x90)
-		{
-			bootInfo.CPUType = ARM;
-		}
-		else
-		{
-			bootInfo.CPUType = UNKNOWN;
-		}
-		break;
-	}
-
+	parseBootInfo(buf);
 	return true;
 }
 

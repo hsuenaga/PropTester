@@ -102,6 +102,7 @@ private:
 	uint8_t recv(uint8_t *buf, size_t len, bool hasCRC = true);
 	uint8_t recvAck();
 	uint8_t observeResultCode(uint8_t code);
+	void parseBootInfo(uint8_t (&buf)[8]);
 
 public:
 	BLHeli(Stream &);
