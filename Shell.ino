@@ -224,6 +224,9 @@ exec_bl_firminfo(char *arg)
   message("FirmInfo:\n");
   message("Revision %d.%d\n", info.mainRevision, info.subRevision);
   message("EEPROM Layout Revision: %d\n", info.eepromLayout);
+  message("Layout: \"%s\"\n", info.layoutTag);
+  message("MCU: \"%s\"\n", info.mcuTag);
+  message("Name: \"%s\"\n", info.nameTag);
   return true;
 }
 

@@ -500,16 +500,26 @@ BLHeli::readSRAM(uint16_t addr, uint8_t *buf, uint16_t len)
 bool
 BLHeli::readFirmInfo()
 {
-	uint16_t addr;
+	uint16_t version;
+	uint16_t layoutTag, mcuTag, nameTag;
+	uint16_t lenTag;
 
 	switch (bootInfo.Signature)
 	{
 	case 0xe8b1:
 	case 0xe8b2:
-		addr = 0x1A00;
+		version = 0x1A00;
+		layoutTag = 0x1A40;
+		mcuTag = 0x1A50;
+		nameTag = 0x1A60;
+		lenTag = 16;
 		break;
 	case 0xe8b5:
-		addr = 0x3000;
+		version = 0x3000;
+		layoutTag = 0x3040;
+		mcuTag = 0x3050;
+		nameTag = 0x3060;
+		lenTag = 16;
 		break;
 	default:
 		// other product is not supported yet.
@@ -517,13 +527,26 @@ BLHeli::readFirmInfo()
 	}
 
 	uint8_t buf[3];
-	if (readFlash(addr, buf, sizeof(buf)) == false) {
+	if (readFlash(version, buf, sizeof(buf)) == false) {
 		return false;
 	}
 	firmInfo.present = true;
 	firmInfo.mainRevision = buf[0];
 	firmInfo.subRevision = buf[1];
 	firmInfo.eepromLayout = buf[2];
+	memset(firmInfo.layoutTag, 0, sizeof(firmInfo.layoutTag));
+	if (readFlash(layoutTag, (uint8_t *)firmInfo.layoutTag, lenTag) == false) {
+		return false;
+	}
+	memset(firmInfo.mcuTag, 0, sizeof(firmInfo.mcuTag));
+	if (readFlash(mcuTag, (uint8_t *)firmInfo.mcuTag, lenTag) == false) {
+		return false;
+	}
+	memset(firmInfo.nameTag, 0, sizeof(firmInfo.nameTag));
+	if (readFlash(nameTag, (uint8_t *)firmInfo.nameTag, lenTag) == false) {
+		return false;
+	}
+
 	return true;
 }
 

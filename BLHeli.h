@@ -30,6 +30,9 @@ public:
 		uint8_t mainRevision;
 		uint8_t subRevision;
 		uint8_t eepromLayout;
+		char layoutTag[16 + 1];
+		char mcuTag[16 + 1];
+		char nameTag[16 + 1];
 	};
 
 	enum resultCode_t {
