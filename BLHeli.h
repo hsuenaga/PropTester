@@ -115,16 +115,27 @@ public:
 	bool sendSignature();
 	bool keepAlive();
 	bool restart();
+
 	bool setAddress(uint16_t addr);
 	bool setBuffer(const uint8_t *buf, uint16_t len);
-	bool readData(uint8_t type, uint8_t *buf, uint16_t len);
-	bool pageErase();
-	bool writeData(uint8_t type);
-	bool verifyFlash();
+	bool readDataRaw(uint8_t type, uint8_t *buf, uint16_t len);
+	bool writeDataRaw(uint8_t type);
+	bool verifyDataRaw(uint8_t type);
+	bool pageEraseRaw();
+
+	bool readData(uint8_t type, uint16_t addr, uint8_t *buf, uint16_t len);
+	bool writeData(uint8_t type, uint16_t addr, const uint8_t *buf, uint16_t len);
+	bool verifyData(uint8_t type, uint16_t addr, const uint8_t *buf, uint16_t len);
+
+	bool readFlash(uint16_t addr, uint8_t *buf, uint16_t len);
+	bool writeFlash(uint16_t addr, const uint8_t *buf, uint16_t len);
+
+	bool readEEPROM(uint16_t addr, uint8_t *buf, uint16_t len);
+	bool writeEEPROM(uint16_t addr, const uint8_t *buf, uint16_t len);
+
+	bool readSRAM(uint16_t addr, uint8_t *buf, uint16_t len);
 
 	bootInfo_t get_bootinfo()
-
-
 	{
 		return bootInfo;
 	};

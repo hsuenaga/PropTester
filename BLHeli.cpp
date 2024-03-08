@@ -281,8 +281,11 @@ BLHeli::setBuffer(const uint8_t *buf, uint16_t len)
 }
 
 bool
-BLHeli::readData(uint8_t type, uint8_t *buf, uint16_t len)
+BLHeli::readDataRaw(uint8_t type, uint8_t *buf, uint16_t len)
 {
+	if (!address_present) {
+		return false;
+	}
 	if (len > 256) {
 		return false;
 	}
@@ -304,6 +307,7 @@ BLHeli::readData(uint8_t type, uint8_t *buf, uint16_t len)
 		return false;
 	}
 
+	address_present = false;
 	uint8_t cmd[2] = {type, (uint8_t)(len == 256 ? 0 : len)};
 	if (send(cmd, sizeof(cmd)) == false) {
 		return false;
@@ -313,7 +317,7 @@ BLHeli::readData(uint8_t type, uint8_t *buf, uint16_t len)
 }
 
 bool
-BLHeli::writeData(uint8_t type)
+BLHeli::writeDataRaw(uint8_t type)
 {
 	if (!address_present || !buffer_present) {
 		return false;
@@ -342,12 +346,30 @@ BLHeli::writeData(uint8_t type)
 }
 
 bool
-BLHeli::verifyFlash()
+BLHeli::verifyDataRaw(uint8_t type)
 {
 	if (!address_present || !buffer_present) {
 		return false;
 	}
-	uint8_t type = (bootInfo.CPUType == ATMEL) ? VERIFY_FLASH : VERIFY_FLASH_ARM;
+	switch (type)
+	{
+	case VERIFY_FLASH:
+	case VERIFY_FLASH_ARM:
+		if (bootInfo.CPUType == ATMEL)
+		{
+			type = VERIFY_FLASH;
+		}
+		else
+		{
+			type = VERIFY_FLASH_ARM;
+		}
+		break;
+	default:
+		return false;
+	}
+
+	address_present = false;
+	buffer_present = false;
 	uint8_t cmd[2] = {type, 0x01};
 	if (send(cmd, sizeof(cmd)) == false) {
 		return false;
@@ -357,10 +379,14 @@ BLHeli::verifyFlash()
 }
 
 bool
-BLHeli::pageErase()
+BLHeli::pageEraseRaw()
 {
-	uint8_t cmd[2] = {ERASE_FLASH, 0x01};
+	if (!address_present) {
+		return false;
+	}
 
+	address_present = false;
+	uint8_t cmd[2] = {ERASE_FLASH, 0x01};
 	if (send(cmd, sizeof(cmd)) == false) {
 		return false;
 	}
@@ -370,4 +396,102 @@ BLHeli::pageErase()
 	port.setTimeout(1000);
 
 	return (code == SUCCESS);
+}
+
+
+bool
+BLHeli::readData(uint8_t type, uint16_t addr, uint8_t *buf, uint16_t len)
+{
+	if (setAddress(addr) == false)
+	{
+		return false;
+	}
+	if (readDataRaw(type, buf, len) == false)
+	{
+		address_present = false;
+		return false;
+	}
+	return true;
+}
+
+bool
+BLHeli::writeData(uint8_t type, uint16_t addr, const uint8_t *buf, uint16_t len)
+{
+	if (setAddress(addr) == false)
+	{
+		return false;
+	}
+	if (setBuffer(buf, len) == false)
+	{
+		address_present = false;
+		return false;
+	}
+	if (writeDataRaw(type) == false)
+	{
+		address_present = false;
+		buffer_present = false;
+		return false;
+	}
+	return true;
+}
+
+bool
+BLHeli::verifyData(uint8_t type, uint16_t addr, const uint8_t *buf, uint16_t len)
+{
+	if (setAddress(addr) == false)
+	{
+		return false;
+	}
+	if (setBuffer(buf, len) == false)
+	{
+		address_present = false;
+		return false;
+	}
+	if (verifyDataRaw(type) == false)
+	{
+		address_present = false;
+		buffer_present = false;
+		return false;
+	}
+	return true;
+}
+
+bool
+BLHeli::readFlash(uint16_t addr, uint8_t *buf, uint16_t len)
+{
+	return readData(READ_FLASH_SIL, addr, buf, len);
+}
+
+bool
+BLHeli::writeFlash(uint16_t addr, const uint8_t *buf, uint16_t len)
+{
+	if (writeData(PROG_FLASH, addr, buf, len) == false)
+	{
+		return false;
+	}
+	return verifyData(VERIFY_FLASH, addr, buf, len);
+}
+
+bool
+BLHeli::readEEPROM(uint16_t addr, uint8_t *buf, uint16_t len)
+{
+	return readData(READ_EEPROM, addr, buf, len);
+}
+
+bool
+BLHeli::writeEEPROM(uint16_t addr, const uint8_t *buf, uint16_t len)
+{
+	if (writeData(PROG_EEPROM, addr, buf, len) == false)
+	{
+		return false;
+	}
+	// need read & verify ???
+
+	return true;
+}
+
+bool
+BLHeli::readSRAM(uint16_t addr, uint8_t *buf, uint16_t len)
+{
+	return readData(READ_SRAM, addr, buf, len);
 }
