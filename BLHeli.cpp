@@ -242,7 +242,12 @@ BLHeli::setAddress(uint16_t addr)
 	{
 		return false;
 	}
-	return (recvAck() == SUCCESS);
+	uint8_t code = recvAck();
+	if (code != SUCCESS) {
+		return false;
+	}
+	address_present = true;
+	return true;
 }
 
 bool
@@ -267,7 +272,12 @@ BLHeli::setBuffer(const uint8_t *buf, uint16_t len)
 	{
 		return false;
 	}
-	return (recvAck() == SUCCESS);
+	uint8_t code = recvAck();
+	if (code != SUCCESS) {
+		return false;
+	}
+	buffer_present = true;
+	return true;
 }
 
 bool
@@ -276,12 +286,74 @@ BLHeli::readData(uint8_t type, uint8_t *buf, uint16_t len)
 	if (len > 256) {
 		return false;
 	}
+	switch (type)
+	{
+	case READ_FLASH_SIL:
+	case READ_FLASH_ATM:
+		if (bootInfo.CPUType == ATMEL) {
+			type = READ_FLASH_ATM;
+		}
+		else {
+			type = READ_FLASH_SIL;
+		}
+		break;
+	case READ_EEPROM:
+	case READ_SRAM:
+		break;
+	default:
+		return false;
+	}
 
 	uint8_t cmd[2] = {type, (uint8_t)(len == 256 ? 0 : len)};
 	if (send(cmd, sizeof(cmd)) == false) {
 		return false;
 	}
+
 	return (recv(buf, len) == SUCCESS);
+}
+
+bool
+BLHeli::writeData(uint8_t type)
+{
+	if (!address_present || !buffer_present) {
+		return false;
+	}
+	switch (type)
+	{
+	case PROG_FLASH:
+	case PROG_EEPROM:
+		break;
+	default:
+		return false;
+	}
+
+	address_present = false;
+	buffer_present = false;
+	uint8_t cmd[2] = {type, 0x01};
+	if (send(cmd, sizeof(cmd)) == false) {
+		return false;
+	}
+
+	port.setTimeout(3000);
+	uint8_t code = recvAck();
+	port.setTimeout(1000);
+
+	return (code == SUCCESS);
+}
+
+bool
+BLHeli::verifyFlash()
+{
+	if (!address_present || !buffer_present) {
+		return false;
+	}
+	uint8_t type = (bootInfo.CPUType == ATMEL) ? VERIFY_FLASH : VERIFY_FLASH_ARM;
+	uint8_t cmd[2] = {type, 0x01};
+	if (send(cmd, sizeof(cmd)) == false) {
+		return false;
+	}
+
+	return (recvAck() == SUCCESS);
 }
 
 bool

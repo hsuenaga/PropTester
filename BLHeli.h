@@ -92,6 +92,8 @@ private:
 	const uint8_t blheli_signature[6] = {'B', 'L', 'H', 'e', 'l', 'i'};
 	bootInfo_t bootInfo;
 	bool conected;
+	bool address_present;
+	bool buffer_present;
 	uint8_t txrxBuf[256 + 3];
 	Counter_t counter;
 
@@ -117,8 +119,12 @@ public:
 	bool setBuffer(const uint8_t *buf, uint16_t len);
 	bool readData(uint8_t type, uint8_t *buf, uint16_t len);
 	bool pageErase();
+	bool writeData(uint8_t type);
+	bool verifyFlash();
 
 	bootInfo_t get_bootinfo()
+
+
 	{
 		return bootInfo;
 	};
