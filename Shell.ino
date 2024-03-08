@@ -23,6 +23,7 @@ struct shell_command_table bootloader_command[] = {
   {"buffer", exec_bl_buffer},
   {"open", exec_bl_open},
   {"bootinfo", exec_bl_bootinfo},
+  {"firminfo", exec_bl_firminfo},
   {"statusinfo", exec_bl_status},
   {"keepalive", exec_bl_keepalive},
   {"setaddress", exec_bl_setaddress},
@@ -36,6 +37,7 @@ struct shell_command_table bootloader_command[] = {
 };
 
 struct shell_command_table *current_table = shell_command;
+uint16_t last_address = 0;
 
 static void hexdump(const uint8_t *buf, size_t len, size_t column = 16)
 {
@@ -45,7 +47,7 @@ static void hexdump(const uint8_t *buf, size_t len, size_t column = 16)
     nr = false;
     if (i % column == 0)
     {
-      message("0x04%x: ", i);
+      message("0x%04x: ", (last_address + i));
     }
     message("%02x", buf[i]);
     if (i % column == (column - 1))
@@ -210,7 +212,23 @@ exec_bl_bootinfo(char *arg)
 }
 
 bool
-exec_bl_keepalive(char *arg)
+exec_bl_firminfo(char *arg)
+{
+  BLHeli::firmInfo_t info = DShot.blHeli.get_firminfo();
+
+  if (!info.present) {
+    message("No firmware information retrieved.\n");
+    return false;
+  }
+
+  message("FirmInfo:\n");
+  message("Revision %d.%d\n", info.mainRevision, info.subRevision);
+  message("EEPROM Layout Revision: %d\n", info.eepromLayout);
+  return true;
+}
+
+ bool
+ exec_bl_keepalive(char *arg)
 {
   message("Sending keepalive...");
   bool result = DShot.blHeli.keepAlive();
@@ -246,6 +264,7 @@ exec_bl_setaddress(char *arg)
   message("send set address command...");
   bool result = DShot.blHeli.setAddress((uint16_t)value);
   if (result) {
+    last_address = value;
     message("success.\n");
   }
   else {

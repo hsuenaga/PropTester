@@ -180,6 +180,7 @@ BLHeli::sendSignature()
 	uint8_t buf[8];
 
 	memset(&bootInfo, 0, sizeof(bootInfo));
+	memset(&firmInfo, 0, sizeof(firmInfo));
 	restart();
 	restart();
 	send(blheli_signature, sizeof(blheli_signature));
@@ -188,8 +189,9 @@ BLHeli::sendSignature()
 	if (code != SUCCESS) {
 		return false;
 	}
-
 	parseBootInfo(buf);
+
+	(void)readFirmInfo();
 	return true;
 }
 
@@ -493,6 +495,36 @@ bool
 BLHeli::readSRAM(uint16_t addr, uint8_t *buf, uint16_t len)
 {
 	return readData(READ_SRAM, addr, buf, len);
+}
+
+bool
+BLHeli::readFirmInfo()
+{
+	uint16_t addr;
+
+	switch (bootInfo.Signature)
+	{
+	case 0xe8b1:
+	case 0xe8b2:
+		addr = 0x1A00;
+		break;
+	case 0xe8b5:
+		addr = 0x3000;
+		break;
+	default:
+		// other product is not supported yet.
+		return false;
+	}
+
+	uint8_t buf[3];
+	if (readFlash(addr, buf, sizeof(buf)) == false) {
+		return false;
+	}
+	firmInfo.present = true;
+	firmInfo.mainRevision = buf[0];
+	firmInfo.subRevision = buf[1];
+	firmInfo.eepromLayout = buf[2];
+	return true;
 }
 
 BLHeli::escStatus_t

@@ -24,8 +24,15 @@ public:
 		cpuType_t CPUType;
 	};
 
-	enum resultCode_t
+	struct firmInfo_t
 	{
+		bool present;
+		uint8_t mainRevision;
+		uint8_t subRevision;
+		uint8_t eepromLayout;
+	};
+
+	enum resultCode_t {
 		SUCCESS = 0x30,
 		ERRORVERIFY = 0xC0,
 		ERRORCOMMAND = 0xC1,
@@ -95,6 +102,7 @@ private:
 	bool buffer_present;
 	uint8_t txrxBuf[256 + 3];
 	bootInfo_t bootInfo;
+	firmInfo_t firmInfo;
 	counter_t counter;
 	escStatus_t status;
 
@@ -136,6 +144,8 @@ public:
 
 	bool readSRAM(uint16_t addr, uint8_t *buf, uint16_t len);
 
+	bool readFirmInfo();
+
 	escStatus_t get_statusinfo();
 
 	bootInfo_t get_bootinfo()
@@ -146,6 +156,11 @@ public:
 	counter_t get_counter()
 	{
 		return counter;
+	}
+
+	firmInfo_t get_firminfo()
+	{
+		return firmInfo;
 	}
 };
 
