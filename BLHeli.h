@@ -64,7 +64,7 @@ public:
 		PROTO_DSHOT = 5,
 	};
 
-	struct __attribute__((__packed__)) EscStatus_t {
+	struct __attribute__((__packed__)) escStatus_t {
 		uint8_t unknown[3];
 		uint32_t protocol;
 		uint32_t good_frames;
@@ -72,7 +72,7 @@ public:
 		uint32_t unknown2;
 	};
 
-	struct Counter_t
+	struct counter_t
 	{
 		uint32_t tx_buffer_exhausted;
 		uint32_t tx_failure;
@@ -90,12 +90,13 @@ public:
 
 private:
 	const uint8_t blheli_signature[6] = {'B', 'L', 'H', 'e', 'l', 'i'};
-	bootInfo_t bootInfo;
 	bool conected;
 	bool address_present;
 	bool buffer_present;
 	uint8_t txrxBuf[256 + 3];
-	Counter_t counter;
+	bootInfo_t bootInfo;
+	counter_t counter;
+	escStatus_t status;
 
 	Stream &port;
 
@@ -116,12 +117,12 @@ public:
 	bool keepAlive();
 	bool restart();
 
-	bool setAddress(uint16_t addr);
-	bool setBuffer(const uint8_t *buf, uint16_t len);
-	bool readDataRaw(uint8_t type, uint8_t *buf, uint16_t len);
-	bool writeDataRaw(uint8_t type);
-	bool verifyDataRaw(uint8_t type);
-	bool pageEraseRaw();
+	uint8_t setAddress(uint16_t addr);
+	uint8_t setBuffer(const uint8_t *buf, uint16_t len);
+	uint8_t readDataRaw(uint8_t type, uint8_t *buf, uint16_t len);
+	uint8_t writeDataRaw(uint8_t type);
+	uint8_t verifyDataRaw(uint8_t type);
+	uint8_t pageEraseRaw();
 
 	bool readData(uint8_t type, uint16_t addr, uint8_t *buf, uint16_t len);
 	bool writeData(uint8_t type, uint16_t addr, const uint8_t *buf, uint16_t len);
@@ -135,12 +136,14 @@ public:
 
 	bool readSRAM(uint16_t addr, uint8_t *buf, uint16_t len);
 
+	escStatus_t get_statusinfo();
+
 	bootInfo_t get_bootinfo()
 	{
 		return bootInfo;
 	};
 
-	Counter_t get_counter()
+	counter_t get_counter()
 	{
 		return counter;
 	}

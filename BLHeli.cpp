@@ -225,11 +225,11 @@ BLHeli::restart()
 	return true;
 }
 
-bool
+uint8_t
 BLHeli::setAddress(uint16_t addr)
 {
 	if (addr == 0xFFFF) {
-		return true;
+		return NONE;
 	}
 
 	uint8_t cmd[4] = {
@@ -240,17 +240,17 @@ BLHeli::setAddress(uint16_t addr)
 
 	if (send(cmd, sizeof(cmd)) == false)
 	{
-		return false;
+		return NONE;
 	}
 	uint8_t code = recvAck();
 	if (code != SUCCESS) {
-		return false;
+		return NONE;
 	}
 	address_present = true;
-	return true;
+	return code;
 }
 
-bool
+uint8_t
 BLHeli::setBuffer(const uint8_t *buf, uint16_t len)
 {
 	uint8_t cmd[4] = {
@@ -262,32 +262,32 @@ BLHeli::setBuffer(const uint8_t *buf, uint16_t len)
 
 	if (send(cmd, sizeof(cmd)) == false)
 	{
-		return false;
+		return NONE;
 	}
 	if (recvAck() != SUCCESS) {
-		return false;
+		return NONE;
 	}
 
 	if (send(buf, len) == false)
 	{
-		return false;
+		return NONE;
 	}
 	uint8_t code = recvAck();
 	if (code != SUCCESS) {
-		return false;
+		return NONE;
 	}
 	buffer_present = true;
-	return true;
+	return code;
 }
 
-bool
+uint8_t
 BLHeli::readDataRaw(uint8_t type, uint8_t *buf, uint16_t len)
 {
 	if (!address_present) {
-		return false;
+		return NONE;
 	}
 	if (len > 256) {
-		return false;
+		return NONE;
 	}
 	switch (type)
 	{
@@ -304,23 +304,23 @@ BLHeli::readDataRaw(uint8_t type, uint8_t *buf, uint16_t len)
 	case READ_SRAM:
 		break;
 	default:
-		return false;
+		return NONE;
 	}
 
 	address_present = false;
 	uint8_t cmd[2] = {type, (uint8_t)(len == 256 ? 0 : len)};
 	if (send(cmd, sizeof(cmd)) == false) {
-		return false;
+		return NONE;
 	}
 
-	return (recv(buf, len) == SUCCESS);
+	return recv(buf, len);
 }
 
-bool
+uint8_t
 BLHeli::writeDataRaw(uint8_t type)
 {
 	if (!address_present || !buffer_present) {
-		return false;
+		return NONE;
 	}
 	switch (type)
 	{
@@ -328,28 +328,28 @@ BLHeli::writeDataRaw(uint8_t type)
 	case PROG_EEPROM:
 		break;
 	default:
-		return false;
+		return NONE;
 	}
 
 	address_present = false;
 	buffer_present = false;
 	uint8_t cmd[2] = {type, 0x01};
 	if (send(cmd, sizeof(cmd)) == false) {
-		return false;
+		return NONE;
 	}
 
 	port.setTimeout(3000);
 	uint8_t code = recvAck();
 	port.setTimeout(1000);
 
-	return (code == SUCCESS);
+	return code;
 }
 
-bool
+uint8_t
 BLHeli::verifyDataRaw(uint8_t type)
 {
 	if (!address_present || !buffer_present) {
-		return false;
+		return NONE;
 	}
 	switch (type)
 	{
@@ -365,48 +365,47 @@ BLHeli::verifyDataRaw(uint8_t type)
 		}
 		break;
 	default:
-		return false;
+		return NONE;
 	}
 
 	address_present = false;
 	buffer_present = false;
 	uint8_t cmd[2] = {type, 0x01};
 	if (send(cmd, sizeof(cmd)) == false) {
-		return false;
+		return NONE;
 	}
 
-	return (recvAck() == SUCCESS);
+	return recvAck();
 }
 
-bool
+uint8_t
 BLHeli::pageEraseRaw()
 {
 	if (!address_present) {
-		return false;
+		return NONE;
 	}
 
 	address_present = false;
 	uint8_t cmd[2] = {ERASE_FLASH, 0x01};
 	if (send(cmd, sizeof(cmd)) == false) {
-		return false;
+		return NONE;
 	}
 
 	port.setTimeout(3000);
 	uint8_t code = recvAck();
 	port.setTimeout(1000);
 
-	return (code == SUCCESS);
+	return code;
 }
-
 
 bool
 BLHeli::readData(uint8_t type, uint16_t addr, uint8_t *buf, uint16_t len)
 {
-	if (setAddress(addr) == false)
+	if (setAddress(addr) != SUCCESS)
 	{
 		return false;
 	}
-	if (readDataRaw(type, buf, len) == false)
+	if (readDataRaw(type, buf, len) != SUCCESS)
 	{
 		address_present = false;
 		return false;
@@ -417,16 +416,16 @@ BLHeli::readData(uint8_t type, uint16_t addr, uint8_t *buf, uint16_t len)
 bool
 BLHeli::writeData(uint8_t type, uint16_t addr, const uint8_t *buf, uint16_t len)
 {
-	if (setAddress(addr) == false)
+	if (setAddress(addr) != SUCCESS)
 	{
 		return false;
 	}
-	if (setBuffer(buf, len) == false)
+	if (setBuffer(buf, len) != SUCCESS)
 	{
 		address_present = false;
 		return false;
 	}
-	if (writeDataRaw(type) == false)
+	if (writeDataRaw(type) != SUCCESS)
 	{
 		address_present = false;
 		buffer_present = false;
@@ -438,16 +437,16 @@ BLHeli::writeData(uint8_t type, uint16_t addr, const uint8_t *buf, uint16_t len)
 bool
 BLHeli::verifyData(uint8_t type, uint16_t addr, const uint8_t *buf, uint16_t len)
 {
-	if (setAddress(addr) == false)
+	if (setAddress(addr) != SUCCESS)
 	{
 		return false;
 	}
-	if (setBuffer(buf, len) == false)
+	if (setBuffer(buf, len) != SUCCESS)
 	{
 		address_present = false;
 		return false;
 	}
-	if (verifyDataRaw(type) == false)
+	if (verifyDataRaw(type) != SUCCESS)
 	{
 		address_present = false;
 		buffer_present = false;
@@ -494,4 +493,12 @@ bool
 BLHeli::readSRAM(uint16_t addr, uint8_t *buf, uint16_t len)
 {
 	return readData(READ_SRAM, addr, buf, len);
+}
+
+BLHeli::escStatus_t
+BLHeli::get_statusinfo()
+{
+	readSRAM(VAR_STATUS, (uint8_t* )&status, sizeof(status));
+
+	return status;
 }

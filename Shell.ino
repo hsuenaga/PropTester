@@ -23,8 +23,12 @@ struct shell_command_table bootloader_command[] = {
   {"buffer", exec_bl_buffer},
   {"open", exec_bl_open},
   {"bootinfo", exec_bl_bootinfo},
+  {"statusinfo", exec_bl_status},
   {"keepalive", exec_bl_keepalive},
   {"setaddress", exec_bl_setaddress},
+  {"readflash", exec_bl_readflash},
+  {"readeeprom", exec_bl_readeeprom},
+  {"readsram", exec_bl_readsram},
   {"restart", exec_bl_restart},
   {"write", exec_bl_write},
   {"exit", exec_bl_exit},
@@ -32,6 +36,28 @@ struct shell_command_table bootloader_command[] = {
 };
 
 struct shell_command_table *current_table = shell_command;
+
+static void hexdump(const uint8_t *buf, size_t len, size_t column = 16)
+{
+  bool nr = false;
+  for (int i = 0; i < len; i++)
+  {
+    nr = false;
+    if (i % column == 0)
+    {
+      message("0x04%x: ", i);
+    }
+    message("%02x", buf[i]);
+    if (i % column == (column - 1))
+    {
+      message("\n");
+      nr = true;
+    }
+  }
+  if (!nr) {
+    message("\n");
+  }
+}
 
 bool
 exec_reg(char *arg)
@@ -71,7 +97,7 @@ bool
 exec_stat(char *arg)
 {
   HalfDuplexSerialCore::Counter_t serialCounter = DShot.serialCore.get_counter();
-  BLHeli::Counter_t blheliCounter = DShot.blHeli.get_counter();
+  BLHeli::counter_t blheliCounter = DShot.blHeli.get_counter();
 
   message("--DShot interrupts statistics--\n");
   message("tx_success: %d\n", DShot.tx_success);
@@ -123,6 +149,21 @@ exec_bl_buffer(char *arg)
   message("txFIFO_Len: %d\n", serialBuffer.txFIFO_Len);
   message("rxFIFO_Max: %d\n", serialBuffer.rxFIFO_Max);
   message("rxFIFO_Len: %d\n", serialBuffer.rxFIFO_Len);
+}
+
+bool
+exec_bl_status(char *arg)
+{
+  BLHeli::escStatus_t stat = DShot.blHeli.get_statusinfo();
+
+  message("--ESC Status--\n");
+  message("Protocol: %u\n", stat.protocol);
+  message("good_frames: %u\n", stat.good_frames);
+  message("bad_frames: %u\n", stat.bad_frames);
+  message("unknown1: 0x%02x\n", stat.unknown[0]);
+  message("unknown2: 0x%02x\n", stat.unknown[1]);
+  message("unknown3: 0x%02x\n", stat.unknown[2]);
+  message("unknown4: 0x%04x\n", stat.unknown2);
 }
 
 bool
@@ -211,6 +252,57 @@ exec_bl_setaddress(char *arg)
     message("failure.\n");
   }
   return result;
+}
+
+bool
+exec_bl_readflash(char *arg)
+{
+  uint8_t buf[128];
+
+  message("send read command...");
+  uint8_t code = DShot.blHeli.readDataRaw(BLHeli::READ_FLASH_SIL, buf, sizeof(buf));
+  if (code != BLHeli::SUCCESS) {
+    message("failure(%02x).\n", code);
+    return false;
+  }
+  message("success.\n");
+
+  hexdump(buf, sizeof(buf));
+
+  return true;
+}
+
+bool
+exec_bl_readeeprom(char *arg)
+{
+  uint8_t buf[128];
+
+  uint8_t code = DShot.blHeli.readDataRaw(BLHeli::READ_EEPROM, buf, sizeof(buf));
+  if (code != BLHeli::SUCCESS) {
+    message("failure(%02x).\n", code);
+    return false;
+  }
+  message("success.\n");
+
+  hexdump(buf, sizeof(buf));
+
+  return true;
+}
+bool
+exec_bl_readsram(char *arg)
+{
+  uint8_t buf[128];
+
+  uint8_t code = DShot.blHeli.readDataRaw(BLHeli::READ_SRAM, buf, sizeof(buf));
+  if (code != BLHeli::SUCCESS) {
+    message("failure(%02x).\n", code);
+    return false;
+  }
+  message("success.\n");
+
+  hexdump(buf, sizeof(buf));
+
+  return true;
 }
 
 bool
