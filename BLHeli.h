@@ -61,9 +61,17 @@ public:
 		SET_ADDRESS = 0xFF,
 	};
 
-	enum escVariable_t
+	struct escVariableAddress_t
 	{
-		VAR_STATUS = 0xEB00,
+		uint16_t status;
+		uint16_t versionTag;
+		uint16_t versionTagLen;
+		uint16_t layoutTag;
+		uint16_t layoutTagLen;
+		uint16_t mcuTag;
+		uint16_t mcuTagLen;
+		uint16_t nameTag;
+		uint16_t nameTagLen;
 	};
 
 	enum escProtocl_t
@@ -108,6 +116,7 @@ private:
 	firmInfo_t firmInfo;
 	counter_t counter;
 	escStatus_t status;
+	escVariableAddress_t address;
 
 	Stream &port;
 

@@ -123,6 +123,7 @@ BLHeli::parseBootInfo(uint8_t (&buf)[8])
 	bootInfo.Signature = (buf[4] << 8) | buf[5];
 	bootInfo.Version = buf[6];
 	bootInfo.Pages = buf[7];
+	memset(&address, 0, sizeof(address));
 
 	switch (bootInfo.Signature)
 	{
@@ -137,8 +138,29 @@ BLHeli::parseBootInfo(uint8_t (&buf)[8])
 	case 0xF410:
 	case 0xF390:
 	case 0xF850:
+		bootInfo.CPUType = SILAB;
+		break;
 	case 0xE8B1:
 	case 0xE8B2:
+		address.versionTag = 0x1A00;
+		address.versionTagLen = 3;
+		address.layoutTag = 0x1A40;
+		address.layoutTagLen = 16;
+		address.mcuTag = 0x1A50;
+		address.mcuTagLen = 16;
+		address.nameTag = 0x1A60;
+		address.nameTagLen = 16;
+		bootInfo.CPUType = SILAB;
+		break;
+	case 0xE8B5:
+		address.versionTag = 0x3000;
+		address.versionTagLen = 3;
+		address.layoutTag = 0x3040;
+		address.layoutTagLen = 16;
+		address.mcuTag = 0x3050;
+		address.mcuTagLen = 16;
+		address.nameTag = 0x3060;
+		address.nameTagLen = 16;
 		bootInfo.CPUType = SILAB;
 		break;
 	default:
@@ -500,51 +522,40 @@ BLHeli::readSRAM(uint16_t addr, uint8_t *buf, uint16_t len)
 bool
 BLHeli::readFirmInfo()
 {
-	uint16_t version;
-	uint16_t layoutTag, mcuTag, nameTag;
-	uint16_t lenTag;
+	memset(&firmInfo, 0, sizeof(firmInfo));
 
-	switch (bootInfo.Signature)
+	if (address.versionTag != 0)
 	{
-	case 0xe8b1:
-	case 0xe8b2:
-		version = 0x1A00;
-		layoutTag = 0x1A40;
-		mcuTag = 0x1A50;
-		nameTag = 0x1A60;
-		lenTag = 16;
-		break;
-	case 0xe8b5:
-		version = 0x3000;
-		layoutTag = 0x3040;
-		mcuTag = 0x3050;
-		nameTag = 0x3060;
-		lenTag = 16;
-		break;
-	default:
-		// other product is not supported yet.
-		return false;
+		// XXX: BLHeli_S only.
+		uint8_t buf[3];
+		if (readFlash(address.versionTag, buf, sizeof(buf)) == false) {
+			return false;
+		}
+		firmInfo.present = true;
+		firmInfo.mainRevision = buf[0];
+		firmInfo.subRevision = buf[1];
+		firmInfo.eepromLayout = buf[2];
 	}
 
-	uint8_t buf[3];
-	if (readFlash(version, buf, sizeof(buf)) == false) {
-		return false;
+	if (address.layoutTag != 0)
+	{
+		if (readFlash(address.layoutTag, (uint8_t *)firmInfo.layoutTag, address.layoutTagLen) == false) {
+			return false;
+		}
 	}
-	firmInfo.present = true;
-	firmInfo.mainRevision = buf[0];
-	firmInfo.subRevision = buf[1];
-	firmInfo.eepromLayout = buf[2];
-	memset(firmInfo.layoutTag, 0, sizeof(firmInfo.layoutTag));
-	if (readFlash(layoutTag, (uint8_t *)firmInfo.layoutTag, lenTag) == false) {
-		return false;
+
+	if (address.mcuTag != 0)
+	{
+		if (readFlash(address.mcuTag, (uint8_t *)firmInfo.mcuTag, address.mcuTagLen) == false) {
+			return false;
 	}
-	memset(firmInfo.mcuTag, 0, sizeof(firmInfo.mcuTag));
-	if (readFlash(mcuTag, (uint8_t *)firmInfo.mcuTag, lenTag) == false) {
-		return false;
+
 	}
-	memset(firmInfo.nameTag, 0, sizeof(firmInfo.nameTag));
-	if (readFlash(nameTag, (uint8_t *)firmInfo.nameTag, lenTag) == false) {
-		return false;
+	if (address.nameTag != 0)
+	{
+		if (readFlash(address.nameTag, (uint8_t *)firmInfo.nameTag, address.nameTagLen) == false) {
+			return false;
+		}
 	}
 
 	return true;
@@ -553,7 +564,11 @@ BLHeli::readFirmInfo()
 BLHeli::escStatus_t
 BLHeli::get_statusinfo()
 {
-	readSRAM(VAR_STATUS, (uint8_t* )&status, sizeof(status));
+	memset(&status, 0, sizeof(status));
+	if (address.status != 0)
+	{
+		readSRAM(address.status, (uint8_t* )&status, sizeof(status));
+	}
 
 	return status;
 }
