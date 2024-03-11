@@ -61,6 +61,29 @@ static void hexdump(const uint8_t *buf, size_t len, size_t column = 16)
   }
 }
 
+const char *
+bl_strerror(uint8_t code)
+{
+  switch (code)
+  {
+  case BLHeli::SUCCESS:
+    return "SUCCESS";
+  case BLHeli::ERRORVERIFY:
+    return "ERRORVERIFY";
+    break;
+  case BLHeli::ERRORCOMMAND:
+    return "ERRORCOMMAND";
+  case BLHeli::ERRORCRC:
+    return "ERRORCRC";
+  case BLHeli::NONE:
+    return "internal error";
+  default:
+    break;
+  }
+
+  return "UNKNOWN";
+}
+
 bool
 exec_reg(char *arg)
 {
@@ -281,10 +304,10 @@ exec_bl_readflash(char *arg)
 {
   uint8_t buf[128];
 
-  message("send read command...");
+  message("send read flash command...");
   uint8_t code = DShot.blHeli.readDataRaw(BLHeli::READ_FLASH_SIL, buf, sizeof(buf));
   if (code != BLHeli::SUCCESS) {
-    message("failure(%02x).\n", code);
+    message("failure(0x%02x: %s).\n", code, bl_strerror(code));
     return false;
   }
   message("success.\n");
@@ -299,9 +322,10 @@ exec_bl_readeeprom(char *arg)
 {
   uint8_t buf[128];
 
+  message("send read eeprom command...");
   uint8_t code = DShot.blHeli.readDataRaw(BLHeli::READ_EEPROM, buf, sizeof(buf));
   if (code != BLHeli::SUCCESS) {
-    message("failure(%02x).\n", code);
+    message("failure(0x%02x: %s).\n", code, bl_strerror(code));
     return false;
   }
   message("success.\n");
@@ -315,9 +339,10 @@ exec_bl_readsram(char *arg)
 {
   uint8_t buf[128];
 
+  message("send read sram command...");
   uint8_t code = DShot.blHeli.readDataRaw(BLHeli::READ_SRAM, buf, sizeof(buf));
   if (code != BLHeli::SUCCESS) {
-    message("failure(%02x).\n", code);
+    message("failure(0x%02x: %s).\n", code, bl_strerror(code));
     return false;
   }
   message("success.\n");

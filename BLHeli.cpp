@@ -55,29 +55,41 @@ BLHeli::recv(uint8_t *buf, size_t len, bool hasCRC)
 		return NONE;
 	}
 
+	uint8_t code;
 	int n = port.readBytes(&txrxBuf[0], recvLen);
-	if (n != recvLen)
+	if (n != recvLen && n != 1)
 	{
 		counter.rx_timeout++;
 		return NONE;
 	}
-
-	if (hasCRC)
+	else if (n == 1)
 	{
-		uint16_t crc = crcCompute(&txrxBuf[0], len);
-		if (txrxBuf[len] != (crc & 0xFF))
+		// detect single byte response.
+		// note: error code may be returned without CRC.
+		code = txrxBuf[0];
+	}
+	else
+	{
+		// detect multibyte response.
+		if (hasCRC)
 		{
-			counter.rx_bad_crc++;
-			return NONE;
+			// multibyte response with CRC
+			uint16_t crc = crcCompute(&txrxBuf[0], len);
+			if (txrxBuf[len] != (crc & 0xFF))
+			{
+				counter.rx_bad_crc++;
+				return NONE;
+			}
+			if (txrxBuf[len + 1] != ((crc >> 8) & 0xFF))
+			{
+				counter.rx_bad_crc++;
+				return NONE;
+			}
 		}
-		if (txrxBuf[len + 1] != ((crc >> 8) & 0xFF))
-		{
-			counter.rx_bad_crc++;
-			return NONE;
-		}
+		code = txrxBuf[recvLen - 1];
 	}
 
-	uint8_t code = observeResultCode(txrxBuf[recvLen - 1]);
+	code = observeResultCode(code);
 	if (code == SUCCESS && buf != NULL && len > 0) {
 		memcpy(buf, &txrxBuf[0], len);
 	}
@@ -104,7 +116,7 @@ BLHeli::observeResultCode(uint8_t code)
 	case ERRORCOMMAND:
 		counter.rx_error_command++;
 		break;
-	case ERRROCRC:
+	case ERRORCRC:
 		counter.rx_error_crc++;
 		break;
 	case NONE:

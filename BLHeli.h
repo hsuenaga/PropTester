@@ -39,7 +39,7 @@ public:
 		SUCCESS = 0x30,
 		ERRORVERIFY = 0xC0,
 		ERRORCOMMAND = 0xC1,
-		ERRROCRC = 0xC2,
+		ERRORCRC = 0xC2,
 		NONE = 0xFF
 	};
 
