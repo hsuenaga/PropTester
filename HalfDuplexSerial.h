@@ -64,7 +64,7 @@ private:
 
 	bool tx_busy = false;
 	const static int txBits = 11; // idle/stop(1) + start(1) + data(8) + stop(<1)
-	uint32_t txrxIFG;
+	uint32_t txIFG;
 	uint32_t txrxStop;
 	using txPFSBY_t = uint8_t[txBits];
 	const static int txFIFOLen = 16;
@@ -75,6 +75,7 @@ private:
 
 	bool rx_ready = false;
 	bool rx_overflow = false;
+	uint32_t rxCapture;
 	const static int rxBits = 10; // start(1) + data(8) + stop(1)
 	using rxPFSBY_t = uint8_t[rxBits];
 	const static int rxFIFOLen = 16;

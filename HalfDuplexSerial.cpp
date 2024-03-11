@@ -25,8 +25,9 @@ void HalfDuplexSerialCore::gpt_init()
   fspTimer.stop();
   fspTimer.set_duty_cycle(default_duty, CHANNEL_A);
   fspTimer.set_duty_cycle(default_duty, CHANNEL_B);
-  txrxIFG = gptReg->GTPR_b.GTPR / 2;
-  gptReg->GTCNT_b.GTCNT = txrxIFG;
+  txIFG = gptReg->GTPR_b.GTPR - 1;
+  rxCapture = gptReg->GTPR_b.GTPR / 2;
+  gptReg->GTCNT_b.GTCNT = rxCapture;
   txrxStop = 0x1 << fspTimer.get_channel();
 }
 
@@ -98,7 +99,7 @@ void HalfDuplexSerialCore::dtc_info_tx_init()
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
   infop->p_dest = (void *)&(gptReg->GTCNT);
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_src = (void *)&(txrxIFG);
+  infop->p_src = (void *)&(txIFG);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_DISABLED;
   infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
@@ -164,7 +165,7 @@ void HalfDuplexSerialCore::dtc_info_rx_init()
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
   infop->p_dest = (void *)&(gptReg->GTCNT);
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_src = (void *)&(txrxIFG);
+  infop->p_src = (void *)&(rxCapture);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_DISABLED;
   infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
@@ -232,8 +233,7 @@ bool HalfDuplexSerialCore::tx_serial_restart(bool initial)
 {
   if (initial) {
     // send 1st bit
-    txrxIFG = gptReg->GTPR - 1;
-    gptReg->GTCNT = txrxIFG;
+    gptReg->GTCNT = txIFG;
   }
   else {
     txFIFO_OUT++;
@@ -330,8 +330,7 @@ bool HalfDuplexSerialCore::rx_serial_start()
   }
   rx_ready = true;
 
-  txrxIFG = gptReg->GTPR/2;
-  gptReg->GTCNT = txrxIFG;
+  gptReg->GTCNT = rxCapture;
 
   dtc_info_rx_init();
 
