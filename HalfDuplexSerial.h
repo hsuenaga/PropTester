@@ -63,7 +63,7 @@ private:
 
 
 	bool tx_busy = false;
-	const static int txBits = 11; // idle(1) + start(1) + data(8) + stop(<1)
+	const static int txBits = 11; // idle/stop(1) + start(1) + data(8) + stop(<1)
 	uint32_t txrxIFG;
 	uint32_t txrxStop;
 	using txPFSBY_t = uint8_t[txBits];

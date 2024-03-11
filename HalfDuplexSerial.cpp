@@ -330,7 +330,8 @@ bool HalfDuplexSerialCore::rx_serial_start()
   }
   rx_ready = true;
 
-//  R_DTC_Disable(&dtcCtrl);
+  txrxIFG = gptReg->GTPR/2;
+  gptReg->GTCNT = txrxIFG;
 
   dtc_info_rx_init();
 
