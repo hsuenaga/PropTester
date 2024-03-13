@@ -4,6 +4,7 @@
 #include "HX711R4.h"
 #include "DShotR4.h"
 #include "MSP.h"
+#include "SCS0009.h"
 
 //---------------------------------------------------//
 // ピンの設定
@@ -14,6 +15,7 @@
 static HX711 HX711;
 static DShotR4 DShot;
 static MSP Msp(Serial, DShot);
+static SCS0009 SCS(DShot.serialCore);
 
 #undef HX711_TEST
 #undef DSHOT_TEST

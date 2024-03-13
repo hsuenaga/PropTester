@@ -13,6 +13,7 @@ struct shell_command_table shell_command[] = {
   {"throttle", exec_throttle},
   {"commit", exec_commit},
   {"bootloader", exec_bootloader},
+  {"servo", exec_servo},
   {"help", exec_help},
   {NULL, NULL}
 };
@@ -20,7 +21,7 @@ struct shell_command_table shell_command[] = {
 struct shell_command_table bootloader_command[] = {
   {"reg", exec_reg},
   {"stat", exec_stat},
-  {"buffer", exec_bl_buffer},
+  {"buffer", exec_buffer},
   {"open", exec_bl_open},
   {"bootinfo", exec_bl_bootinfo},
   {"firminfo", exec_bl_firminfo},
@@ -33,6 +34,18 @@ struct shell_command_table bootloader_command[] = {
   {"restart", exec_bl_restart},
   {"write", exec_bl_write},
   {"exit", exec_bl_exit},
+  {NULL, NULL}
+};
+
+struct shell_command_table serial_servo_command[] = {
+  {"version", exec_servo_version},
+  {"baud", exec_servo_baud},
+  {"setbaud", exec_servo_setbaud},
+  {"position", exec_servo_position},
+  {"reg", exec_reg},
+  {"stat", exec_stat},
+  {"buffer", exec_buffer},
+  {"exit", exec_servo_exit},
   {NULL, NULL}
 };
 
@@ -165,7 +178,7 @@ exec_stat(char *arg)
 }
 
 bool
-exec_bl_buffer(char *arg)
+exec_buffer(char *arg)
 {
   HalfDuplexSerialCore::Buffer_t serialBuffer = DShot.serialCore.get_buffer();
 
@@ -174,6 +187,82 @@ exec_bl_buffer(char *arg)
   message("txFIFO_Len: %d\n", serialBuffer.txFIFO_Len);
   message("rxFIFO_Max: %d\n", serialBuffer.rxFIFO_Max);
   message("rxFIFO_Len: %d\n", serialBuffer.rxFIFO_Len);
+}
+
+bool
+exec_servo_version(char *arg)
+{
+  int verFirm, verServo;
+  verFirm = SCS.readVersion(1);
+  if (verFirm < 0) {
+    message("failed.\n");
+    return false;
+  }
+  verServo = SCS.readServoVersion(1);
+  if (verServo < 0)
+  {
+    message("failed.\n");
+    return false;
+  }
+
+  message("Firmware version: %d.%d\n", ((verFirm >> 8) & 0xFF), (verFirm & 0xFF));
+  message("Servo version: %d.%d\n", ((verServo >> 8) & 0xFF), (verServo & 0xFF));
+  return true;
+}
+
+bool
+exec_servo_baud(char *arg)
+{
+  int baud;
+  baud = SCS.readBaud(1);
+  if (baud < 0)
+  {
+    message("failed.\n");
+    return false;
+  }
+
+  message("read baud: %d\n", (baud & 0xFF));
+  return true;
+}
+
+bool
+exec_servo_setbaud(char *arg)
+{
+  int baud;
+  baud = SCS.writeBaud(1, SCS0009::B38400);
+  if (baud < 0)
+  {
+    message("failed.\n");
+    return false;
+  }
+
+  message("written baud: %d\n", (baud & 0xff));
+  return true;
+}
+
+bool
+exec_servo_position(char *arg)
+{
+  int pos;
+
+  pos = SCS.getPosition(1);
+  if (pos < 0)
+  {
+    message("failed.\n");
+    return false;
+  }
+
+  message("POSITION: %d\n", pos);
+  return true;
+}
+
+bool
+exec_servo_exit(char *arg)
+{
+  DShot.serialCore.end();
+  current_table = shell_command;
+
+  return true;
 }
 
 bool
@@ -496,6 +585,16 @@ exec_bootloader(char *arg)
   }
   current_table = bootloader_command;
   return true;
+}
+
+bool
+exec_servo(char *arg)
+{
+  message("Entering Servo tester mode...");
+  DShot.serialCore.begin(CHANNEL_B, 0, 38400, false);
+  SCS.begin();
+  message("done\n");
+  current_table = serial_servo_command;
 }
 
 bool
