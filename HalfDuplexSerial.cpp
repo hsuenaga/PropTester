@@ -28,7 +28,7 @@ void HalfDuplexSerialCore::gpt_init()
   txIFG = gptReg->GTPR_b.GTPR - 1;
   rxCapture = gptReg->GTPR_b.GTPR / 2;
   gptReg->GTCNT_b.GTCNT = rxCapture;
-  txrxStop = 0x1 << fspTimer.get_channel();
+  gptStartStopVal = 0x1 << fspTimer.get_channel();
 }
 
 void HalfDuplexSerialCore::elc_link(int port)
@@ -86,7 +86,7 @@ void HalfDuplexSerialCore::dtc_info_tx_init()
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
   infop->p_dest = (void *)&(gptReg->GTSTP);
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_src = (void *)&(txrxStop);
+  infop->p_src = (void *)&(gptStartStopVal);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_END;
   infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
@@ -152,7 +152,7 @@ void HalfDuplexSerialCore::dtc_info_rx_init()
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
   infop->p_dest = (void *)&(gptReg->GTSTP);
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
-  infop->p_src = (void *)&(txrxStop);
+  infop->p_src = (void *)&(gptStartStopVal);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_END;
   infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
@@ -204,14 +204,14 @@ void HalfDuplexSerialCore::tx_encode(uint8_t byte, txPFSBY_t &pfsby)
 {
   uint8_t *p = &(pfsby)[0];
 
-  pfsby[0] = pinCfgInput & 0xFF; // idle
-  pfsby[1] = pinCfgOutputLow & 0xFF; // start bit
+  pfsby[0] = pinCfgOutput1 & 0xFF; // idle
+  pfsby[1] = pinCfgOutput0 & 0xFF; // start bit
   for (int i = 0; i < 8; i++)
   {
     bool bit = ((byte >> i) & 0x1) == 0x1;
-    pfsby[2 + i] = (bit ? pinCfgOutputHigh : pinCfgOutputLow) & 0xFF;
+    pfsby[2 + i] = (bit ? pinCfgOutput1 : pinCfgOutput0) & 0xFF;
   }
-  pfsby[10] = pinCfgInput & 0xFF; // stop bit
+  pfsby[10] = pinCfgOutput1 & 0xFF; // stop bit
 }
 
 void HalfDuplexSerialCore::tx_abort()
@@ -249,6 +249,7 @@ bool HalfDuplexSerialCore::tx_serial_restart(bool initial)
   tx_busy = true;
   dtc_info_tx_reset();
   R_DTC_Enable(&dtcCtrl);
+  //gptReg->GTSTR_b.GTSTR = gptStartStopVal;
   fspTimer.start();
   return true;
 }
@@ -329,7 +330,7 @@ bool HalfDuplexSerialCore::rx_serial_start()
     return false;
   }
   rx_ready = true;
-
+  R_PFS->PORT[bspPort].PIN[bspPinOffset].PmnPFS_BY = pinCfgInput & 0xFF;
   gptReg->GTCNT = rxCapture;
 
   dtc_info_rx_init();
@@ -373,7 +374,7 @@ void HalfDuplexSerialCore::overflow_interrupt(timer_callback_args_t(*arg))
   return;
 }
 
-void HalfDuplexSerialCore::begin(TimerPWMChannel_t ch, pin_size_t pin, uint32_t bps)
+void HalfDuplexSerialCore::begin(TimerPWMChannel_t ch, pin_size_t pin, uint32_t bps, bool inv)
 {
   this->channel = ch;
   this->digitalPin = pin;
@@ -382,6 +383,19 @@ void HalfDuplexSerialCore::begin(TimerPWMChannel_t ch, pin_size_t pin, uint32_t 
   this->bspPort = bspPin >> IOPORT_PRV_PORT_OFFSET;
   this->bspPinOffset = bspPin & BSP_IO_PRV_8BIT_MASK;
   this->gptReg = (R_GPT0_Type *)((unsigned long)R_GPT0_BASE + (unsigned long)(0x0100 * fspTimer.get_channel()));
+  if (inv)
+  {
+    pinCfgOutput1 = pinCfgOutputLow;
+    pinCfgOutput0 = pinCfgOutputHigh;
+    pinCfgInput = pinCfgInputHZ;
+  }
+  else
+  {
+    pinCfgOutput1 = pinCfgOutputHigh;
+    pinCfgOutput0 = pinCfgOutputLow;
+    pinCfgInput = pinCfgInputPU;
+  }
+
 
   pinCfgSave = R_PFS->PORT[bspPort].PIN[bspPinOffset].PmnPFS;
   pinCfgSave &= ~(R_PFS_PORT_PIN_PmnPFS_PIDR_Msk);

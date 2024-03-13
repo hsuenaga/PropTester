@@ -55,17 +55,26 @@ private:
 	    IOPORT_CFG_PORT_OUTPUT_LOW |
 	    IOPORT_CFG_DRIVE_MID;
 
-	static const uint32_t pinCfgInput =
+	static const uint32_t pinCfgInputPU =
 	    IOPORT_CFG_PORT_DIRECTION_INPUT |
 	    IOPORT_CFG_PULLUP_ENABLE |
 	    IOPORT_CFG_DRIVE_MID |
 	    IOPORT_CFG_EVENT_FALLING_EDGE;
 
+	static const uint32_t pinCfgInputHZ =
+	    IOPORT_CFG_PORT_DIRECTION_INPUT |
+	    IOPORT_CFG_DRIVE_MID |
+	    IOPORT_CFG_EVENT_FALLING_EDGE;
+
+  uint32_t pinCfgOutput1;
+  uint32_t pinCfgOutput0;
+  uint32_t pinCfgInput;
+  bool invert = false;
 
 	bool tx_busy = false;
 	const static int txBits = 11; // idle/stop(1) + start(1) + data(8) + stop(<1)
 	uint32_t txIFG;
-	uint32_t txrxStop;
+	uint32_t gptStartStopVal;
 	using txPFSBY_t = uint8_t[txBits];
 	const static int txFIFOLen = 16;
 	txPFSBY_t txFIFO[txFIFOLen];
@@ -122,7 +131,7 @@ public:
 
 	void overflow_interrupt(timer_callback_args_t(*arg));
 
-	void begin(TimerPWMChannel_t ch, pin_size_t pin, uint32_t bps = 19200);
+	void begin(TimerPWMChannel_t ch, pin_size_t pin, uint32_t bps = 19200, bool inv = false);
 	void end();
 
 	size_t write(uint8_t) override;
