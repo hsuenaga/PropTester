@@ -231,3 +231,47 @@ SCS0009::getPosition(uint8_t id)
 {
 	return read16(id, CURRENT_POSITION);
 }
+
+int
+SCS0009::setPosition(uint8_t id, uint16_t pos)
+{
+	if (write16(id, TARGET_ANGLE, pos) < 0)
+	{
+		return -1;
+	}
+
+	return (int)(pos);
+}
+
+SCS0009::config_t
+SCS0009::getConfig(uint8_t id)
+{
+	SCS0009::config_t config;
+
+	config.id = read8(id, ID);
+	config.baud = read8(id, BAUD);
+	config.delay = read8(id, DELAY);
+	config.response_level = read8(id, RESPONSE_LEVEL);
+	config.min_angle = read16(id, MIN_ANGLE);
+	config.max_angle = read16(id, MAX_ANGLE);
+	config.max_temp = read8(id, MAX_TEMP);
+	config.max_voltage = read8(id, MAX_VOLTAGE);
+	config.min_voltage = read8(id, MIN_VOLTAGE);
+
+	return config;
+}
+
+SCS0009::status_t
+SCS0009::getStatus(uint8_t id)
+{
+	SCS0009::status_t status;
+
+	status.target_angle = read16(id, TARGET_ANGLE);
+	status.current_angle = read16(id, CURRENT_POSITION);
+	status.current_velocity = read16(id, CURRENT_VELOCITY);
+	status.current_load = read16(id, CURRENT_LOAD);
+	status.current_voltage = read8(id, CURRENT_VOLTAGE);
+	status.current_temp = read8(id, CURRENT_TEMP);
+
+	return status;
+}

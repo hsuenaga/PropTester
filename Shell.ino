@@ -42,6 +42,9 @@ struct shell_command_table serial_servo_command[] = {
   {"baud", exec_servo_baud},
   {"setbaud", exec_servo_setbaud},
   {"position", exec_servo_position},
+  {"setposition", exec_servo_setposition},
+  {"config", exec_servo_config},
+  {"status", exec_servo_status},
   {"reg", exec_reg},
   {"stat", exec_stat},
   {"buffer", exec_buffer},
@@ -253,6 +256,64 @@ exec_servo_position(char *arg)
   }
 
   message("POSITION: %d\n", pos);
+  return true;
+}
+
+bool
+exec_servo_setposition(char *arg)
+{
+  char *endp = NULL;
+  long value = strtol(arg, &endp, 0);
+  if (*endp != '\0') {
+    message("invalid argument \"%s\". need address value.\n", arg);
+    return false;
+  }
+  if (value < 0x0000 || value > 0xFFFF) {
+    message("invalid argument \"%s\". need address from 0x0000 to 0xFFFF.\n", arg);
+    return false;
+  }
+  uint16_t pos = (uint16_t)value;
+
+  if (SCS.setPosition(1, pos) < 0) {
+    message("failed.\n");
+  }
+
+  message("POSITION: %d\n", pos);
+  return true;
+}
+
+bool
+exec_servo_config(char *arg)
+{
+  SCS0009::config_t config = SCS.getConfig(1);
+
+  message("---SCS0009 CONFIG---\n");
+  message("ID: %d\n", config.id);
+  message("BAUD: %d\n", config.baud);
+  message("DELAY: %d\n", config.delay);
+  message("RESPONSE_LEVEL: %d\n", config.response_level);
+  message("MIN_ANGLE: %d\n", config.min_angle);
+  message("MAX_ANGLE: %d\n", config.max_angle);
+  message("MAX_TEMP: %d [C]\n", config.max_temp);
+  message("MIN_VOLTAGE: %d.%d [V]\n", (config.min_voltage / 10), (config.min_voltage % 10));
+  message("MAX_VOLTAGE: %d.%d [V]\n", (config.max_voltage / 10), (config.max_voltage % 10));
+
+  return true;
+}
+
+bool
+exec_servo_status(char *arg)
+{
+  SCS0009::status_t status = SCS.getStatus(1);
+
+  message("---SCS0009 STATUS---\n");
+  message("Target Angle: %d\n", status.target_angle);
+  message("Current Angle: %d\n", status.current_angle);
+  message("Current Velocity: %d\n", status.current_velocity);
+  message("Current Load: %d.%d [%%]\n", (status.current_load / 10), (status.current_load % 10));
+  message("Current Voltage: %d.%d [V]\n", (status.current_voltage / 10), (status.current_voltage % 10));
+  message("Current Temp: %d [C]\n", status.current_temp);
+
   return true;
 }
 

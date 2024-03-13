@@ -20,6 +20,31 @@ public:
 		B38400 = 0x07,
 	};
 
+	struct config_t
+	{
+		uint8_t id;
+		uint8_t baud;
+		uint8_t delay;
+		uint8_t response_level;
+
+		uint16_t min_angle;
+		uint16_t max_angle;
+
+		uint16_t max_temp;
+		uint16_t max_voltage;
+		uint16_t min_voltage;
+	};
+
+	struct status_t
+	{
+		uint16_t target_angle;
+		uint16_t current_angle;
+		uint16_t current_velocity;
+		uint16_t current_load;
+		uint16_t current_voltage;
+		uint16_t current_temp;
+	};
+
 private:
 	Stream &port;
 
@@ -43,7 +68,7 @@ private:
 		ID = 0x05,
 		BAUD = 0x06,
 		DELAY = 0x07,
-		RSPONSE_LEVEL = 0x08,
+		RESPONSE_LEVEL = 0x08,
 
 		MIN_ANGLE = 0x09, // 2 bytes [step]
 		MAX_ANGLE = 0x0B, // 2 bytes [step]
@@ -92,10 +117,12 @@ private:
 	bool compChecksum(frame_buffer_t &frame);
 
 	bool readRegister(uint8_t id, address_t addr, uint8_t *buf, uint8_t len);
+
+	bool writeRegister(uint8_t id, address_t addr, const uint8_t *buf, uint8_t len);
+
 	int read8(uint8_t id, address_t addr);
 	int read16(uint8_t id, address_t addr);
 
-	bool writeRegister(uint8_t id, address_t addr, const uint8_t *buf, uint8_t len);
 	ssize_t write8(uint8_t id, address_t addr, uint8_t val);
 	ssize_t write16(uint8_t id, address_t addr, uint16_t val);
 
@@ -112,5 +139,9 @@ public:
 	int writeBaud(uint8_t id, baud_t baud);
 
 	int getPosition(uint8_t id);
+	int setPosition(uint8_t id, uint16_t pos);
+
+	config_t getConfig(uint8_t id);
+	status_t getStatus(uint8_t id);
 };
 #endif /* __SCS0009_H__ */
