@@ -12,11 +12,11 @@
             ],
             "intelliSenseMode": "gcc-x64",
             "includePath": [
-                "/Users/hsuenaga/Library/Arduino15/packages/arduino/hardware/renesas_uno/1.0.5/cores/arduino/tinyusb",
-                "/Users/hsuenaga/Library/Arduino15/packages/arduino/hardware/renesas_uno/1.0.5/cores/arduino/api/deprecated",
-                "/Users/hsuenaga/Library/Arduino15/packages/arduino/hardware/renesas_uno/1.0.5/cores/arduino/api/deprecated-avr-comp",
-                "/Users/hsuenaga/Library/Arduino15/packages/arduino/hardware/renesas_uno/1.0.5/cores/arduino",
-                "/Users/hsuenaga/Library/Arduino15/packages/arduino/hardware/renesas_uno/1.0.5/variants/MINIMA",
+                "/Users/hsuenaga/Library/Arduino15/packages/arduino/hardware/renesas_uno/1.1.0/cores/arduino/tinyusb",
+                "/Users/hsuenaga/Library/Arduino15/packages/arduino/hardware/renesas_uno/1.1.0/cores/arduino/api/deprecated",
+                "/Users/hsuenaga/Library/Arduino15/packages/arduino/hardware/renesas_uno/1.1.0/cores/arduino/api/deprecated-avr-comp",
+                "/Users/hsuenaga/Library/Arduino15/packages/arduino/hardware/renesas_uno/1.1.0/cores/arduino",
+                "/Users/hsuenaga/Library/Arduino15/packages/arduino/hardware/renesas_uno/1.1.0/variants/MINIMA",
                 "/Users/hsuenaga/Library/Arduino15/packages/arduino/tools/arm-none-eabi-gcc/7-2017q4/arm-none-eabi/include/c++/7.2.1",
                 "/Users/hsuenaga/Library/Arduino15/packages/arduino/tools/arm-none-eabi-gcc/7-2017q4/arm-none-eabi/include/c++/7.2.1/arm-none-eabi",
                 "/Users/hsuenaga/Library/Arduino15/packages/arduino/tools/arm-none-eabi-gcc/7-2017q4/arm-none-eabi/include/c++/7.2.1/backward",
@@ -25,7 +25,7 @@
                 "/Users/hsuenaga/Library/Arduino15/packages/arduino/tools/arm-none-eabi-gcc/7-2017q4/arm-none-eabi/include"
             ],
             "forcedInclude": [
-                "/Users/hsuenaga/Library/Arduino15/packages/arduino/hardware/renesas_uno/1.0.5/cores/arduino/Arduino.h"
+                "/Users/hsuenaga/Library/Arduino15/packages/arduino/hardware/renesas_uno/1.1.0/cores/arduino/Arduino.h"
             ],
             "cStandard": "c11",
             "cppStandard": "c++17",
