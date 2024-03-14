@@ -11,6 +11,7 @@
 //---------------------------------------------------//
 #define pin_data  8
 #define pin_slk   9
+#define pwm_input 2
 
 static HX711 HX711;
 static DShotR4 DShot;
@@ -31,6 +32,8 @@ void setup() {
 
   DShot.begin(DShotR4::DSHOT300);
   DShot.reset();
+
+  pinMode(pwm_input, INPUT);
 }
 
 void

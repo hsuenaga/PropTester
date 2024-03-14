@@ -13,11 +13,13 @@ SCS0009::~SCS0009()
 void
 SCS0009::begin()
 {
+	port.setTimeout(5);
 }
 
 void
 SCS0009::end()
 {
+	port.setTimeout(1000);
 }
 
 uint8_t
@@ -241,6 +243,18 @@ SCS0009::setPosition(uint8_t id, uint16_t pos)
 	}
 
 	return (int)(pos);
+}
+
+int
+SCS0009::getDegree(uint8_t id)
+{
+	return posToDeg(getPosition(id));
+}
+
+int
+SCS0009::setDegree(uint8_t id, uint16_t deg)
+{
+	return setPosition(id, degToPos(deg));
 }
 
 SCS0009::config_t

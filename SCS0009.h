@@ -45,6 +45,11 @@ public:
 		uint16_t current_temp;
 	};
 
+	static const int AngleRange = 300;
+	static const int PosMin = 0;
+	static const int PosNeutral = 1023 / 2;
+	static const int PosMax = 1023;
+
 private:
 	Stream &port;
 
@@ -126,12 +131,85 @@ private:
 	ssize_t write8(uint8_t id, address_t addr, uint8_t val);
 	ssize_t write16(uint8_t id, address_t addr, uint16_t val);
 
+
 public:
 	SCS0009(Stream &p);
 	~SCS0009();
 
 	void begin();
 	void end();
+
+	static inline int posSaturate(int pos)
+	{
+		if (pos < PosMin) {
+			pos = PosMin;
+		}
+		else if (pos > PosMax) {
+			pos = PosMax;
+		}
+		return pos;
+	};
+
+	static inline int posCenterOffset(int pos)
+	{
+		return posSaturate(pos) - PosNeutral;
+	}
+
+	static inline int posCenterDeoffset(int pos)
+	{
+		return posSaturate(pos + PosNeutral);
+	}
+
+	static inline int posToDeg(int pos)
+	{
+		return posCenterOffset(pos) * AngleRange / 1024;
+	};
+
+	static inline float posToDegF(int pos)
+	{
+
+		return (float)(posCenterOffset(pos)) * (float)AngleRange / 1024.0;
+	};
+
+	static inline int degToPos(int deg)
+	{
+		return posCenterDeoffset(deg * 1024 / AngleRange);
+	};
+
+	static inline int pwmToDeg(int us, int neutral, int us30)
+	{
+		return (us - neutral) * 30 / us30;
+	};
+
+	static inline float pwmToDegF(int us, int neutral, int us30)
+	{
+		return (float)(us - neutral) * 30.0 / (float)us30;
+	};
+
+	static inline int FutabaToDeg(int us, bool offJR = false)
+	{
+		return pwmToDeg(us, (offJR ? 1500 : 1520), 450);
+	};
+
+	static inline float FutabaToDegF(int us, bool offJR = false)
+	{
+		return pwmToDegF(us, (offJR ? 1500 : 1520), 450);
+	};
+
+	static inline int FutabaToPos(int us, bool fullrange = false, bool offJR = false)
+	{
+		return degToPos(FutabaToDeg(us, offJR) * (fullrange ? 5 : 1));
+	};
+
+	static inline int JRToDeg(int us)
+	{
+		return pwmToDeg(us, 1500, 400);
+	};
+
+	static inline float JRToDegF(int us)
+	{
+		return pwmToDegF(us, 1500, 400);
+	};
 
 	int readVersion(uint8_t id);
 	int readServoVersion(uint8_t id);
@@ -140,6 +218,9 @@ public:
 
 	int getPosition(uint8_t id);
 	int setPosition(uint8_t id, uint16_t pos);
+
+	int getDegree(uint8_t id);
+	int setDegree(uint8_t id, uint16_t deg);
 
 	config_t getConfig(uint8_t id);
 	status_t getStatus(uint8_t id);

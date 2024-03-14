@@ -43,6 +43,7 @@ struct shell_command_table serial_servo_command[] = {
   {"setbaud", exec_servo_setbaud},
   {"position", exec_servo_position},
   {"setposition", exec_servo_setposition},
+  {"linkpwm", exec_servo_linkpwm},
   {"config", exec_servo_config},
   {"status", exec_servo_status},
   {"reg", exec_reg},
@@ -75,6 +76,20 @@ static void hexdump(const uint8_t *buf, size_t len, size_t column = 16)
   if (!nr) {
     message("\n");
   }
+}
+
+unsigned long
+GetPWM()
+{
+  unsigned long timeout = 100 * 1000UL; // 100[ms]
+  unsigned long highTime = pulseIn(pwm_input, HIGH, timeout);
+
+  if (highTime == 0) {
+    Serial.println("GetPWM timeout.");
+    return 0;
+  }
+
+  return highTime;
 }
 
 const char *
@@ -283,6 +298,30 @@ exec_servo_setposition(char *arg)
 }
 
 bool
+exec_servo_linkpwm(char *arg)
+{
+  message("Link PWM Mode enabled. press any key to exit.\n");
+  unsigned long last = millis();
+  while (true)
+  {
+    unsigned long now = millis();
+    if ((now - last) > 100)
+    {
+      unsigned long us = GetPWM();
+      SCS.setPosition(1, (uint16_t)SCS0009::FutabaToPos(us, true, true));
+      last = now;
+    }
+    if (Serial.read() > 0)
+    {
+      break;
+    }
+  }
+  message("Link PWM Mode finished.\n");
+
+  return true;
+}
+
+bool
 exec_servo_config(char *arg)
 {
   SCS0009::config_t config = SCS.getConfig(1);
@@ -307,12 +346,15 @@ exec_servo_status(char *arg)
   SCS0009::status_t status = SCS.getStatus(1);
 
   message("---SCS0009 STATUS---\n");
-  message("Target Angle: %d\n", status.target_angle);
-  message("Current Angle: %d\n", status.current_angle);
+  message("Target Angle: %d (%6.3f [deg])\n", status.target_angle, SCS0009::posToDegF(status.target_angle));
+  message("Current Angle: %d (%6.3f [deg])\n", status.current_angle, SCS0009::posToDegF(status.current_angle));
   message("Current Velocity: %d\n", status.current_velocity);
   message("Current Load: %d.%d [%%]\n", (status.current_load / 10), (status.current_load % 10));
   message("Current Voltage: %d.%d [V]\n", (status.current_voltage / 10), (status.current_voltage % 10));
   message("Current Temp: %d [C]\n", status.current_temp);
+  message("---Pin Digial 2---\n");
+  unsigned long us = GetPWM();
+  message("%ld (%6.3f [deg])\n", us, SCS0009::FutabaToDegF(us, true));
 
   return true;
 }
@@ -320,6 +362,7 @@ exec_servo_status(char *arg)
 bool
 exec_servo_exit(char *arg)
 {
+  SCS.end();
   DShot.serialCore.end();
   current_table = shell_command;
 
@@ -652,6 +695,12 @@ bool
 exec_servo(char *arg)
 {
   message("Entering Servo tester mode...");
+  DShot.serialCore.begin(CHANNEL_B, 0, 1000 * 1000, false);
+  SCS.begin();
+  SCS.writeBaud(1, SCS0009::B38400);
+  SCS.writeBaud(1, SCS0009::B38400);
+  SCS.end();
+  DShot.serialCore.end();
   DShot.serialCore.begin(CHANNEL_B, 0, 38400, false);
   SCS.begin();
   message("done\n");
