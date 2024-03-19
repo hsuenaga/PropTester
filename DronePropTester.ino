@@ -23,6 +23,7 @@ static SCS0009 SCS(DShot.serialCore);
 
 void setup() {
   Serial.begin(115200);
+  while (!Serial);
 
 #ifdef HX711_TEST
   HX711.init(pin_data, pin_slk);
