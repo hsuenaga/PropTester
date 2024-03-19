@@ -2,33 +2,19 @@
 
 static HX711 *instance = nullptr;
 
-HX711::HX711()
-{
+HX711::HX711() {}
 
-}
+HX711::~HX711() { disableIntr(); }
 
-HX711::~HX711()
-{
-  disableIntr(); 
-}
+void HX711::intr() { instance->dataReady = true; }
 
-void HX711::intr()
-{
-  instance->dataReady = true;
-}
-
-void HX711::enableIntr()
-{
+void HX711::enableIntr() {
   attachInterrupt(digitalPinToInterrupt(pin_data), intr, FALLING);
 }
 
-void HX711::disableIntr()
-{
-  detachInterrupt(digitalPinToInterrupt(pin_data));
-}
+void HX711::disableIntr() { detachInterrupt(digitalPinToInterrupt(pin_data)); }
 
-void HX711::init(pin_size_t data, pin_size_t clock)
-{
+void HX711::init(pin_size_t data, pin_size_t clock) {
   dataReady = false;
   pin_data = data;
   pin_clock = clock;
@@ -43,17 +29,15 @@ void HX711::init(pin_size_t data, pin_size_t clock)
   enableIntr();
 }
 
-void HX711::reset(void)
-{
-  digitalWrite(pin_clock,1);
+void HX711::reset(void) {
+  digitalWrite(pin_clock, 1);
   delayMicroseconds(100);
-  digitalWrite(pin_clock,0);
-  delayMicroseconds(100); 
+  digitalWrite(pin_clock, 0);
+  delayMicroseconds(100);
 }
 
-long HX711::acquire(void)
-{
-  long data=0;
+long HX711::acquire(void) {
+  long data = 0;
   uint8_t data8;
 
   if (!dataReady) {
@@ -63,7 +47,7 @@ long HX711::acquire(void)
   disableIntr();
   dataReady = false;
 
-  noInterrupts();  
+  noInterrupts();
   for (int i = 0; i < 3; i++) {
     data8 = shiftIn(pin_data, pin_clock, MSBFIRST);
     data = data << 8 | data8;
@@ -84,14 +68,12 @@ long HX711::acquire(void)
   }
   *bufferp = data;
 
-  return data; 
+  return data;
 }
 
-long HX711::averaging()
-{
+long HX711::averaging() {
   long sum = 0;
   long Max = minValue, min = MaxValue;
-
 
   for (int i = 0; i < bufferSize; i++) {
     // assume raw data is 24bit and sum will not be overflowed.
@@ -109,24 +91,23 @@ long HX711::averaging()
   return sum / (bufferSize - 2);
 }
 
-float HX711::getGram()
-{
-  #define HX711_R1  20000.0f
-  #define HX711_R2  8200.0f
-  #define HX711_VBG 1.25f
-  #define HX711_AVDD      4.2987f//(HX711_VBG*((HX711_R1+HX711_R2)/HX711_R2))
-  #define HX711_ADC1bit   HX711_AVDD/16777216 //16777216=(2^24)
-  #define HX711_PGA 128.0f
-  #define HX711_SCALE     (OUT_VOL * HX711_AVDD / LOAD * HX711_PGA)
-  
+float HX711::getGram() {
+#define HX711_R1 20000.0f
+#define HX711_R2 8200.0f
+#define HX711_VBG 1.25f
+#define HX711_AVDD 4.2987f  //(HX711_VBG*((HX711_R1+HX711_R2)/HX711_R2))
+#define HX711_ADC1bit HX711_AVDD / 16777216  // 16777216=(2^24)
+#define HX711_PGA 128.0f
+#define HX711_SCALE (OUT_VOL * HX711_AVDD / LOAD * HX711_PGA)
+
   long data;
   float fdata, ndata, rawV, nV, gram;
 
-  data = averaging(); 
-  //Serial.println( HX711_AVDD);   
-  //Serial.println( HX711_ADC1bit);   
-  //Serial.println( HX711_SCALE);   
-  //Serial.println( data);
+  data = averaging();
+  // Serial.println( HX711_AVDD);
+  // Serial.println( HX711_ADC1bit);
+  // Serial.println( HX711_SCALE);
+  // Serial.println( data);
   fdata = (float)data;
   ndata = fdata / (float)0x7fffff;
   rawV = (HX711_AVDD / HX711_PGA) * ndata;
@@ -150,26 +131,15 @@ float HX711::getGram()
   return (gram - offset);
 }
 
-void
-HX711::tare(void)
-{
+void HX711::tare(void) {
   int count = 30;
   for (int i = 0; i < 30; i++) {
-    while (!dataReady)
-      yield();
+    while (!dataReady) yield();
     acquire();
   }
-  offset = getGram(); 
+  offset = getGram();
 }
 
-float
-HX711::getOffset(void)
-{
-  return offset;
-}
+float HX711::getOffset(void) { return offset; }
 
-bool
-HX711::isDataReady(void)
-{
-  return dataReady;
-}
+bool HX711::isDataReady(void) { return dataReady; }

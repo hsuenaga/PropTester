@@ -4,16 +4,10 @@ const char *consoleEndp = consoleBufferp + sizeof(consoleBuffer) - 1;
 bool lineCompleted = false;
 bool skipLF = false;
 bool consoleEcho = true;
-enum consoleState_t
-{
-  DEFAULT = 0,
-  MSP
-};
+enum consoleState_t { DEFAULT = 0, MSP };
 enum consoleState_t consoleState = DEFAULT;
 
-int
-message(const char *fmt, ...)
-{
+int message(const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
   char strbuf[256];
@@ -27,9 +21,7 @@ message(const char *fmt, ...)
   return ret;
 }
 
-bool
-consoleReceive(void)
-{
+bool consoleReceive(void) {
   if (Serial.available() <= 0 || lineCompleted) {
     return false;
   }
@@ -61,8 +53,7 @@ consoleReceive(void)
       break;
     default:
       skipLF = false;
-      if (!isprint(byte))
-      {
+      if (!isprint(byte)) {
         break;
       }
       if (consoleBufferp < consoleEndp) {
@@ -84,9 +75,7 @@ consoleReceive(void)
   return consoleParse(consoleBuffer);
 }
 
-bool
-consoleParse(char *rcvbuf)
-{
+bool consoleParse(char *rcvbuf) {
   char *command = rcvbuf;
   char *arg = NULL;
   char *bufp = rcvbuf;

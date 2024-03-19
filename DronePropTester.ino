@@ -1,16 +1,16 @@
 #include <Arduino.h>
 #include <stdarg.h>
 
-#include "HX711R4.h"
 #include "DShotR4.h"
+#include "HX711R4.h"
 #include "MSP.h"
 #include "SCS0009.h"
 
 //---------------------------------------------------//
 // ピンの設定
 //---------------------------------------------------//
-#define pin_data  8
-#define pin_slk   9
+#define pin_data 8
+#define pin_slk 9
 #define pwm_input 2
 
 static HX711 HX711;
@@ -23,7 +23,8 @@ static SCS0009 SCS(DShot.serialCore);
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial);
+  while (!Serial)
+    ;
 
 #ifdef HX711_TEST
   HX711.init(pin_data, pin_slk);
@@ -37,9 +38,7 @@ void setup() {
   pinMode(pwm_input, INPUT);
 }
 
-void
-AE_HX711_Print()
-{
+void AE_HX711_Print() {
   char S1[80], TempStr[16];
   double value = HX711.getGram();
   long snapValue;
@@ -51,8 +50,7 @@ AE_HX711_Print()
   Serial.println(S1);
 }
 
-void loop()
-{
+void loop() {
   static uint32_t count = 0;
   static unsigned long last_time = 0;
   static uint16_t dshot_throttle = 0;
@@ -65,10 +63,9 @@ void loop()
   }
 
 #ifdef HX711_TEST
-  if (HX711.isDataReady())
-  {
+  if (HX711.isDataReady()) {
     HX711.acquire();
-//    AE_HX711_Print();
+    //    AE_HX711_Print();
   }
 #endif
 

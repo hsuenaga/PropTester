@@ -1,10 +1,7 @@
 #include "DShotR4.h"
-
 #include "bsp_api.h"
 
-void
-DShotR4::tx_dshot_complete(timer_callback_args_t (*arg))
-{
+void DShotR4::tx_dshot_complete(timer_callback_args_t(*arg)) {
   tx_success++;
   tx_busy = false;
 
@@ -13,12 +10,10 @@ DShotR4::tx_dshot_complete(timer_callback_args_t (*arg))
       // always restart
       tx_restart();
       return;
-    }
-    else if (auto_restart_count == 0) {
+    } else if (auto_restart_count == 0) {
       // nothing to do.
       return;
-    }
-    else {
+    } else {
       // restart specified times.
       auto_restart_count--;
       tx_restart();
@@ -29,9 +24,7 @@ DShotR4::tx_dshot_complete(timer_callback_args_t (*arg))
   return;
 }
 
-void
-DShotR4::load_dshot_frame()
-{
+void DShotR4::load_dshot_frame() {
   // NEVER call while DTC is running.
   assert(tx_busy == false);
 
@@ -54,9 +47,7 @@ DShotR4::load_dshot_frame()
   nextFrameUpdate = false;
 }
 
-void
-DShotR4::update_timer_counts(void)
-{
+void DShotR4::update_timer_counts(void) {
   assert(fsp_timer.is_opened() == true);
 
   const struct dshot_params_t *param = &dshot_timing[dshot_type];
@@ -72,15 +63,14 @@ DShotR4::update_timer_counts(void)
   dshot_ifg_us = (uint32_t)ceil(param->bit_duration_us * ifgBits);
 }
 
-void
-DShotR4::gpt_dshot_init()
-{
+void DShotR4::gpt_dshot_init() {
   float default_duty = 0.0;
-  float freqHz = (float)(1.0 / dshot_timing[dshot_type].bit_duration_us * 1000.0 * 1000.0 * tolerance_hz);
+  float freqHz = (float)(1.0 / dshot_timing[dshot_type].bit_duration_us *
+                         1000.0 * 1000.0 * tolerance_hz);
 
   cancel_execution();
 
-  fsp_timer.set_frequency(freqHz); // this function starts timer automaticaly.
+  fsp_timer.set_frequency(freqHz);  // this function starts timer automaticaly.
   fsp_timer.stop();
   fsp_timer.set_duty_cycle(default_duty, CHANNEL_A);
   fsp_timer.set_duty_cycle(default_duty, CHANNEL_B);
@@ -95,31 +85,31 @@ DShotR4::gpt_dshot_init()
 #endif
   }
 
-	gpt_reg->GTIOR = gtioStop.gtior;
+  gpt_reg->GTIOR = gtioStop.gtior;
   if (gpt_pwmChannelA_enable) {
-      pinPeripheral(gpt_pwmPinA, pin_cfg_output_gpt);
+    pinPeripheral(gpt_pwmPinA, pin_cfg_output_gpt);
   }
   if (gpt_pwmChannelB_enable) {
-      pinPeripheral(gpt_pwmPinB, pin_cfg_output_gpt);
+    pinPeripheral(gpt_pwmPinB, pin_cfg_output_gpt);
   }
 }
 
-void
-DShotR4::dtc_dshot_info_init()
-{
+void DShotR4::dtc_dshot_info_init() {
   transfer_info_t *infop = dtc_info;
 
   // transfer waveform (channel A)
   if (gpt_pwmChannelA_enable) {
     infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
     infop->p_dest = (void *)&(gpt_reg->GTCCR[GTCCR_C]);
-    infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_INCREMENTED;
+    infop->transfer_settings_word_b.src_addr_mode =
+        TRANSFER_ADDR_MODE_INCREMENTED;
     infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_EACH;
-    infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
+    infop->transfer_settings_word_b.repeat_area =
+        TRANSFER_REPEAT_AREA_SOURCE;  // unused
     infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
     infop->transfer_settings_word_b.mode = TRANSFER_MODE_NORMAL;
     infop->transfer_settings_word_b.irq = TRANSFER_IRQ_END;
-    infop->num_blocks = 0; // unused
+    infop->num_blocks = 0;  // unused
     infop++;
   }
 
@@ -127,26 +117,30 @@ DShotR4::dtc_dshot_info_init()
   if (gpt_pwmChannelB_enable) {
     infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
     infop->p_dest = (void *)&(gpt_reg->GTCCR[GTCCR_E]);
-    infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_INCREMENTED;
+    infop->transfer_settings_word_b.src_addr_mode =
+        TRANSFER_ADDR_MODE_INCREMENTED;
     infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_EACH;
-    infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
+    infop->transfer_settings_word_b.repeat_area =
+        TRANSFER_REPEAT_AREA_SOURCE;  // unused
     infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
     infop->transfer_settings_word_b.mode = TRANSFER_MODE_NORMAL;
     infop->transfer_settings_word_b.irq = TRANSFER_IRQ_END;
-    infop->num_blocks = 0; // unused
+    infop->num_blocks = 0;  // unused
     infop++;
   }
 
   // GTIO pins / CHANNEL A & B
   infop->transfer_settings_word_b.dest_addr_mode = TRANSFER_ADDR_MODE_FIXED;
   infop->p_dest = (void *)&(gpt_reg->GTIOR);
-  infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_INCREMENTED;
+  infop->transfer_settings_word_b.src_addr_mode =
+      TRANSFER_ADDR_MODE_INCREMENTED;
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_END;
-  infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
+  infop->transfer_settings_word_b.repeat_area =
+      TRANSFER_REPEAT_AREA_SOURCE;  // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
   infop->transfer_settings_word_b.mode = TRANSFER_MODE_NORMAL;
   infop->transfer_settings_word_b.irq = TRANSFER_IRQ_END;
-  infop->num_blocks = 0; // unused.
+  infop->num_blocks = 0;  // unused.
   infop++;
 
   // Stop Timer
@@ -155,11 +149,12 @@ DShotR4::dtc_dshot_info_init()
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
   infop->p_src = (void *)&(this->gpt_ChannelRegVal);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_EACH;
-  infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
+  infop->transfer_settings_word_b.repeat_area =
+      TRANSFER_REPEAT_AREA_SOURCE;  // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
   infop->transfer_settings_word_b.mode = TRANSFER_MODE_NORMAL;
   infop->transfer_settings_word_b.irq = TRANSFER_IRQ_END;
-  infop->num_blocks = 0; // unused.
+  infop->num_blocks = 0;  // unused.
   infop++;
 
   // Clear Timer
@@ -168,19 +163,18 @@ DShotR4::dtc_dshot_info_init()
   infop->transfer_settings_word_b.src_addr_mode = TRANSFER_ADDR_MODE_FIXED;
   infop->p_src = (void *)&(this->gpt_ChannelRegVal);
   infop->transfer_settings_word_b.chain_mode = TRANSFER_CHAIN_MODE_DISABLED;
-  infop->transfer_settings_word_b.repeat_area = TRANSFER_REPEAT_AREA_SOURCE; // unused
+  infop->transfer_settings_word_b.repeat_area =
+      TRANSFER_REPEAT_AREA_SOURCE;  // unused
   infop->transfer_settings_word_b.size = TRANSFER_SIZE_4_BYTE;
   infop->transfer_settings_word_b.mode = TRANSFER_MODE_NORMAL;
   infop->transfer_settings_word_b.irq = TRANSFER_IRQ_END;
-  infop->num_blocks = 0; // unused.
+  infop->num_blocks = 0;  // unused.
   infop++;
 
   assert(infop <= &dtc_info[dtc_info_len]);
 }
 
-void
-DShotR4::dtc_dshot_info_reset()
-{
+void DShotR4::dtc_dshot_info_reset() {
   transfer_info_t *infop = dtc_info;
   uint16_t bits = waveformBits - 1;
 
@@ -218,18 +212,14 @@ DShotR4::dtc_dshot_info_reset()
   assert(infop <= &dtc_info[dtc_info_len]);
 }
 
-void
-DShotR4::dtc_dshot_init(void)
-{
+void DShotR4::dtc_dshot_init(void) {
   assert(GPT_IRQn != FSP_INVALID_VECTOR);
 
   dtc_dshot_info_init();
   dtc_dshot_info_reset();
 }
 
-bool
-DShotR4::tx_restart()
-{
+bool DShotR4::tx_restart() {
   // can be called from interrupt context.
   assert(tx_busy == false);
 
@@ -254,9 +244,7 @@ DShotR4::tx_restart()
   return true;
 }
 
-bool
-DShotR4::tx_start()
-{
+bool DShotR4::tx_start() {
   assert(fsp_timer.is_opened() == true);
 
   bool auto_restart_enabled = auto_restart;
