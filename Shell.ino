@@ -85,7 +85,7 @@ GetPWM()
   unsigned long highTime = pulseIn(pwm_input, HIGH, timeout);
 
   if (highTime == 0) {
-    Serial.println("GetPWM timeout.");
+    message("PWM read error.\n");
     return 0;
   }
 
@@ -308,7 +308,12 @@ exec_servo_linkpwm(char *arg)
     if ((now - last) > 100)
     {
       unsigned long us = GetPWM();
-      SCS.setPosition(1, (uint16_t)SCS0009::FutabaToPos(us, true, true));
+      if (us > 0) {
+        if (SCS.setPosition(1, (uint16_t)SCS0009::FutabaToPos(us, true, true)) < 0)
+        {
+          message("Serial Communication Error.\n");
+        }
+      }
       last = now;
     }
     if (Serial.read() > 0)
