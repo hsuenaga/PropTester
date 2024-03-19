@@ -181,7 +181,7 @@ exec_stat(char *arg)
   message("rx_error_verify: %d\n", blheliCounter.rx_error_verify);
   message("rx_error_command: %d\n", blheliCounter.rx_error_command);
   message("rx_error_crc: %d\n", blheliCounter.rx_error_crc);
-  message("rx_error_unknwon: %d\n", blheliCounter.rx_error_unknown);
+  message("rx_error_unknown: %d\n", blheliCounter.rx_error_unknown);
 
   message("--MSP status--\n");
   message("received: %d, error: %d\n", Msp.received, Msp.error);
@@ -357,7 +357,7 @@ exec_servo_status(char *arg)
   message("Current Load: %d.%d [%%]\n", (status.current_load / 10), (status.current_load % 10));
   message("Current Voltage: %d.%d [V]\n", (status.current_voltage / 10), (status.current_voltage % 10));
   message("Current Temp: %d [C]\n", status.current_temp);
-  message("---Pin Digial 2---\n");
+  message("---Pin Digital 2---\n");
   unsigned long us = GetPWM();
   message("%ld (%6.3f [deg])\n", us, SCS0009::FutabaToDegF(us, true));
 

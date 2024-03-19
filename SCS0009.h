@@ -155,7 +155,7 @@ public:
 		return posSaturate(pos) - PosNeutral;
 	}
 
-	static inline int posCenterDeoffset(int pos)
+	static inline int posCenterUnoffset(int pos)
 	{
 		return posSaturate(pos + PosNeutral);
 	}
@@ -173,7 +173,7 @@ public:
 
 	static inline int degToPos(int deg)
 	{
-		return posCenterDeoffset(deg * 1024 / AngleRange);
+		return posCenterUnoffset(deg * 1024 / AngleRange);
 	};
 
 	static inline int pwmToDeg(int us, int neutral, int us30)

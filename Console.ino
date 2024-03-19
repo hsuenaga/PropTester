@@ -35,7 +35,7 @@ consoleReceive(void)
   }
   int byte = Serial.read();
 
-  // Intercept MSP/BLIHELI frame.
+  // Intercept MSP/BLHELI frame.
   if (consoleBufferp == consoleBuffer && consoleState != MSP && byte == '$') {
     consoleState = MSP;
   }

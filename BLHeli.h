@@ -74,7 +74,7 @@ public:
 		uint16_t nameTagLen;
 	};
 
-	enum escProtocl_t
+	enum escProtocol_t
 	{
 		PROTO_NONE = 0,
 		PROTO_NORMAL = 1,
@@ -108,7 +108,7 @@ public:
 
 private:
 	const uint8_t blheli_signature[6] = {'B', 'L', 'H', 'e', 'l', 'i'};
-	bool conected;
+	bool connected;
 	bool address_present;
 	bool buffer_present;
 	uint8_t txrxBuf[256 + 3];

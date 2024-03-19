@@ -76,7 +76,7 @@ long HX711::acquire(void)
   enableIntr();
 
   if (data & 0x800000) {
-    // Sign expantion
+    // Sign expansion
     data |= (~0x7fffff);
   }
   if (++bufferp >= &buffer[bufferSize]) {
