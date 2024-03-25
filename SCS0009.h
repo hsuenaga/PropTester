@@ -1,10 +1,9 @@
 #pragma once
-
+#ifndef __SCS0009_H__
+#define __SCS0009_H__
 #include <Arduino.h>
 #include <FspTimer.h>
 
-#ifndef __SCS0009_H__
-#define __SCS0009_H__
 class SCS0009 {
  public:
   enum baud_t {

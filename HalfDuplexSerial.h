@@ -1,5 +1,6 @@
 #pragma once
-
+#ifndef __HALFDUPLEXSERIAL_H__
+#define __HALFDUPLEXSERIAL_H__
 #include <Arduino.h>
 #include <FspTimer.h>
 
@@ -153,3 +154,4 @@ class HalfDuplexSerialCore : public Stream {
     return buffer;
   }
 };
+#endif /* __HALFDUPLEXSERIAL_H__ */

@@ -1,9 +1,8 @@
 #pragma once
-
-#include <Arduino.h>
-
 #ifndef __BLHELI_H__
 #define __BLHELI_H__
+
+#include <Arduino.h>
 class BLHeli {
  public:
   enum cpuType_t {
@@ -160,4 +159,4 @@ class BLHeli {
   firmInfo_t get_firminfo() { return firmInfo; }
 };
 
-#endif
+#endif /* __BLHELI_H__ */

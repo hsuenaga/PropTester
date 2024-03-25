@@ -1,3 +1,6 @@
+#pragma once
+#ifndef __MSP_H__
+#define __MSP_H__
 #include <Arduino.h>
 
 #include "DShotR4.h"
@@ -83,3 +86,4 @@ class MSP {
 
   bool receive(int byte);
 };
+#endif /* __MSP_H__ */

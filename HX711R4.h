@@ -1,3 +1,6 @@
+#pragma once
+#ifndef __HX711R4_H__
+#define __HX711R4_H__
 #include <Arduino.h>
 
 //---------------------------------------------------//
@@ -61,3 +64,4 @@ class HX711 {
   float getGram();
   float getOffset();
 };
+#endif /* __HX711R4_H__ */

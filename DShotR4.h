@@ -1,4 +1,6 @@
 #pragma once
+#ifndef __DSHOTR4_H__
+#define __DSHOTR4_H__
 
 #include <Arduino.h>
 #include <FspTimer.h>
@@ -287,3 +289,4 @@ class DShotR4 {
 
   pin_size_t get_pwmPinB() { return gpt_pwmPinB; };
 };
+#endif /* __DSHOTR4_H__ */
