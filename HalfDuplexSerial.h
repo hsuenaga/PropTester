@@ -30,6 +30,11 @@ class HalfDuplexSerialCore : public Stream {
     uint32_t rxFIFO_Len;
   };
 
+  struct Config_t {
+    bool invert;
+    bool opendrain;
+  };
+
  private:
   TimerPWMChannel_t channel;
   pin_size_t digitalPin;
@@ -42,18 +47,30 @@ class HalfDuplexSerialCore : public Stream {
   bool isOpen;
   Counter_t counter;
   Buffer_t buffer;
+  Config_t config;
 
-  static const uint32_t pinCfgOutputHigh = IOPORT_CFG_PORT_DIRECTION_OUTPUT |
-                                           IOPORT_CFG_PORT_OUTPUT_HIGH |
-                                           IOPORT_CFG_DRIVE_MID;
+  static const uint32_t pinCfgOutputHighCMOS = IOPORT_CFG_PORT_DIRECTION_OUTPUT |
+                                               IOPORT_CFG_PORT_OUTPUT_HIGH |
+                                               IOPORT_CFG_DRIVE_MID;
 
-  static const uint32_t pinCfgOutputLow = IOPORT_CFG_PORT_DIRECTION_OUTPUT |
-                                          IOPORT_CFG_PORT_OUTPUT_LOW |
-                                          IOPORT_CFG_DRIVE_MID;
+  static const uint32_t pinCfgOutputLowCMOS = IOPORT_CFG_PORT_DIRECTION_OUTPUT |
+                                              IOPORT_CFG_PORT_OUTPUT_LOW |
+                                              IOPORT_CFG_DRIVE_MID;
 
-  static const uint32_t pinCfgInputPU =
-      IOPORT_CFG_PORT_DIRECTION_INPUT | IOPORT_CFG_PULLUP_ENABLE |
-      IOPORT_CFG_DRIVE_MID | IOPORT_CFG_EVENT_FALLING_EDGE;
+  static const uint32_t pinCfgOutputHighNMOS = IOPORT_CFG_PORT_DIRECTION_OUTPUT |
+                                               IOPORT_CFG_PORT_OUTPUT_HIGH |
+                                               IOPORT_CFG_NMOS_ENABLE |
+                                               IOPORT_CFG_DRIVE_MID;
+
+  static const uint32_t pinCfgOutputLowNMOS = IOPORT_CFG_PORT_DIRECTION_OUTPUT |
+                                              IOPORT_CFG_PORT_OUTPUT_LOW |
+                                              IOPORT_CFG_NMOS_ENABLE |
+                                              IOPORT_CFG_DRIVE_MID;
+
+  static const uint32_t pinCfgInputPU = IOPORT_CFG_PORT_DIRECTION_INPUT |
+                                        IOPORT_CFG_PULLUP_ENABLE |
+                                        IOPORT_CFG_DRIVE_MID |
+                                        IOPORT_CFG_EVENT_FALLING_EDGE;
 
   static const uint32_t pinCfgInputHZ = IOPORT_CFG_PORT_DIRECTION_INPUT |
                                         IOPORT_CFG_DRIVE_MID |
@@ -62,7 +79,6 @@ class HalfDuplexSerialCore : public Stream {
   uint32_t pinCfgOutput1;
   uint32_t pinCfgOutput0;
   uint32_t pinCfgInput;
-  bool invert = false;
 
   bool tx_busy = false;
   const static int txBits = 11;  // idle/stop(1) + start(1) + data(8) + stop(<1)
@@ -125,6 +141,7 @@ class HalfDuplexSerialCore : public Stream {
 
   void overflow_interrupt(timer_callback_args_t(*arg));
 
+  void configure(Config_t config);
   void begin(TimerPWMChannel_t ch, pin_size_t pin, uint32_t bps = 19200,
              bool inv = false);
   void end();
@@ -152,6 +169,10 @@ class HalfDuplexSerialCore : public Stream {
     buffer.txFIFO_Len = txFIFO_Bytes;
     buffer.rxFIFO_Len = rxFIFO_Bytes;
     return buffer;
+  }
+
+  Config_t get_config(void) {
+    return config;
   }
 };
 #endif /* __HALFDUPLEXSERIAL_H__ */

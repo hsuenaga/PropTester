@@ -352,6 +352,11 @@ void HalfDuplexSerialCore::overflow_interrupt(timer_callback_args_t(*arg)) {
   return;
 }
 
+void HalfDuplexSerialCore::configure(Config_t conf)
+{
+  this->config = conf;
+}
+
 void HalfDuplexSerialCore::begin(TimerPWMChannel_t ch, pin_size_t pin,
                                  uint32_t bps, bool inv) {
   this->channel = ch;
@@ -363,14 +368,35 @@ void HalfDuplexSerialCore::begin(TimerPWMChannel_t ch, pin_size_t pin,
   this->gptReg =
       (R_GPT0_Type *)((unsigned long)R_GPT0_BASE +
                       (unsigned long)(0x0100 * fspTimer.get_channel()));
-  if (inv) {
-    pinCfgOutput1 = pinCfgOutputLow;
-    pinCfgOutput0 = pinCfgOutputHigh;
-    pinCfgInput = pinCfgInputHZ;
-  } else {
-    pinCfgOutput1 = pinCfgOutputHigh;
-    pinCfgOutput0 = pinCfgOutputLow;
-    pinCfgInput = pinCfgInputPU;
+  if (config.invert)
+  {
+    if (config.opendrain)
+    {
+      pinCfgOutput1 = pinCfgOutputLowNMOS;
+      pinCfgOutput0 = pinCfgOutputHighNMOS;
+      pinCfgInput = pinCfgInputHZ;
+    }
+    else
+    {
+      pinCfgOutput1 = pinCfgOutputLowCMOS;
+      pinCfgOutput0 = pinCfgOutputHighCMOS;
+      pinCfgInput = pinCfgInputHZ;
+    }
+  }
+  else
+  {
+    if (config.opendrain)
+    {
+      pinCfgOutput1 = pinCfgOutputHighNMOS;
+      pinCfgOutput0 = pinCfgOutputLowNMOS;
+      pinCfgInput = pinCfgInputHZ;
+    }
+    else
+    {
+      pinCfgOutput1 = pinCfgOutputHighCMOS;
+      pinCfgOutput0 = pinCfgOutputLowCMOS;
+      pinCfgInput = pinCfgInputPU;
+    }
   }
 
   pinCfgSave = R_PFS->PORT[bspPort].PIN[bspPinOffset].PmnPFS;
